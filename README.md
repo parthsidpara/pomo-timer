@@ -437,6 +437,10 @@ Screen** command; the installed app opens standalone.
 The service worker is intentionally pass-through and caches nothing. There is
 no offline mode: Firestore and the API remain the source of truth.
 
+The interface follows the operating system's color scheme by default. The
+top-bar theme button switches between light and dark, and saves that choice in
+local storage.
+
 ## Security notes
 
 - Firestore rules allow the owner UID only; every other path is denied. The

@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import Script from "next/script";
 import "@fontsource-variable/instrument-sans";
 import "@fontsource-variable/sometype-mono";
 import "./globals.css";
@@ -21,8 +22,11 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
-  colorScheme: "light",
-  themeColor: "#e6eae2",
+  colorScheme: "light dark",
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#e6eae2" },
+    { media: "(prefers-color-scheme: dark)", color: "#0d1511" },
+  ],
 };
 
 export default function RootLayout({
@@ -31,8 +35,13 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
-      <body>{children}</body>
+    <html lang="en" suppressHydrationWarning>
+      <body>
+        <Script id="theme-init" strategy="beforeInteractive">
+          {`(function(){try{var t=localStorage.getItem("worklog-theme");if(t==="dark"||t==="light"){document.documentElement.dataset.theme=t;}}catch(e){}})();`}
+        </Script>
+        {children}
+      </body>
     </html>
   );
 }

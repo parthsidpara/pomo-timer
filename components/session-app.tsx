@@ -20,6 +20,7 @@ import {
 import { DeniedPanel, LoadingPanel, SignInPanel, StatePanel } from "./gate";
 import { Ledger } from "./ledger";
 import { StartForm } from "./start-form";
+import { ThemeToggle } from "./theme-toggle";
 import { TimerPanel } from "./timer-panel";
 import { mapSessionDoc } from "@/lib/client-session-mapper";
 import {
@@ -69,9 +70,14 @@ function FirebaseTopbar({ dateLabel }: { dateLabel: string | null }) {
         <span className="wordmark">Worklog</span>
       </div>
 
-      <div className="topbar-meta">
-        {dateLabel ? <span>{dateLabel}</span> : null}
-        <span className="timezone">IST</span>
+      <div className="topbar-actions">
+        <div className="topbar-meta">
+          {dateLabel ? (
+            <span className="topbar-date">{dateLabel}</span>
+          ) : null}
+          <span className="timezone">IST</span>
+        </div>
+        <ThemeToggle />
       </div>
     </header>
   );
