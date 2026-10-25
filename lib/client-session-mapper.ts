@@ -28,7 +28,7 @@ export function mapSessionDoc(
   const start = toDate(data.start);
   const label = typeof data.label === "string" ? data.label.trim() : "";
 
-  if (!start || !label) {
+  if (!start) {
     return null;
   }
 

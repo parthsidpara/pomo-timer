@@ -469,7 +469,7 @@ local storage.
 npm test
 ```
 
-The 28 tests cover:
+The 30 tests cover:
 
 - Active time while running, paused, resumed, and stopped while paused.
 - Pause accumulation and final pause commits.
@@ -481,6 +481,8 @@ The 28 tests cover:
   running, and starting an untitled session.
 - MCP header authentication and the `?key=` fallback, including missing/wrong
   credentials, missing server configuration, and disallowed origins.
+- Client-side Firestore mapping, including keeping untitled sessions visible
+  and dropping malformed documents without a start timestamp.
 - Two concurrent starts: exactly one succeeds (the in-memory test store
   serializes transactions like Firestore).
 
