@@ -119,9 +119,17 @@ in **Asia/Kolkata (IST, UTC+05:30)**.
 - A Claude plan/client that supports custom remote MCP connectors with request
   headers
 
-The Firebase web SDK is pinned to `12.x` because the 13.x line requires Node
-24.12+, while Firebase Admin 14 and this project target Node 22. Keep that in
-mind before upgrading.
+Dependency pins matter here:
+
+- The Firebase web SDK is pinned to `12.x` because the 13.x line requires Node
+  24.12+, while this project targets Node 22.
+- `firebase-admin` is pinned to **13.10.0**. Version 14 pulls
+  `jwks-rsa@4` → `jose@6`, which is ESM-only and crashes Next's external module
+  loader on Vercel's Node 22 runtime with `ERR_REQUIRE_ESM`. Version 13.10 uses
+  the CommonJS-compatible `jose@4`. Don't upgrade it without testing a Vercel
+  deployment, not just a local build.
+
+Keep those pins in mind before upgrading dependencies.
 
 ### 1. Create the Firebase project
 
