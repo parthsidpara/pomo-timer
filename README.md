@@ -233,7 +233,7 @@ Copy `.env.example` to `.env.local` and fill it in:
 | `NEXT_PUBLIC_FIREBASE_APP_ID` | yes | Firebase web app config |
 | `OWNER_UID` | no | The only UID allowed to use the API |
 | `FIREBASE_SERVICE_ACCOUNT_BASE64` | no | Admin SDK credentials |
-| `MCP_BEARER_TOKEN` | no | Static token for `/api/mcp` |
+| `MCP_BEARER_TOKEN` | no | Static token for `/api/mcp` (header or `?key=` fallback) |
 | `MCP_ALLOWED_ORIGINS` | no | Extra origins for the MCP Origin check (CORS is not enabled) |
 
 Generate the MCP token with:
@@ -324,21 +324,37 @@ a network error.
    ```
 
 5. Authentication: choose **No sign in**. This server does not use OAuth.
-6. Under **Request headers**, add:
+6. Send the token using whichever option your Claude client supports:
+
+   **Preferred — request header:**
 
    ```
    Authorization: Bearer YOUR_MCP_BEARER_TOKEN
    ```
+
+   If your Claude build has a **Request headers** section, use that and keep
+   the URL as `https://YOUR_DOMAIN/api/mcp`.
+
+   **Fallback — token in the URL:**
+
+   ```text
+   https://YOUR_DOMAIN/api/mcp?key=YOUR_MCP_BEARER_TOKEN
+   ```
+
+   Use this only when the client has no request-header field. The token becomes
+   part of the capability URL and can appear in Vercel/Cloudflare request logs.
+   Never share that URL. Leave the request headers empty in this mode.
 
 7. Add the connector, then enable it for a conversation from the tools/connector
    menu.
 
 The token is sent on every request. Treat it as full access to your worklog:
 anyone with the token can start, pause, stop, and read sessions. If it leaks,
-change `MCP_BEARER_TOKEN`, redeploy, and update the request header in Claude.
+change `MCP_BEARER_TOKEN`, redeploy, and update the request header or connector
+URL in Claude.
 
 Anthropic connects from its cloud infrastructure, not from your browser. The
-endpoint must therefore be publicly reachable. The static header is the access
+endpoint must therefore be publicly reachable. The static token is the access
 control; no OAuth metadata endpoints are implemented.
 
 ### Test the endpoint locally
@@ -352,11 +368,20 @@ curl -i -X POST http://localhost:3000/api/mcp \
 # HTTP 401, {"error":"Unauthorized."}
 ```
 
-A valid initialize request reaches the MCP handler:
+A valid initialize request reaches the MCP handler. Use either the header:
 
 ```bash
 curl -i -X POST http://localhost:3000/api/mcp \
   -H 'Authorization: Bearer YOUR_TOKEN' \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json, text/event-stream' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"curl","version":"1.0"}}}'
+```
+
+or the URL fallback:
+
+```bash
+curl -i -X POST 'http://localhost:3000/api/mcp?key=YOUR_TOKEN' \
   -H 'Content-Type: application/json' \
   -H 'Accept: application/json, text/event-stream' \
   -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"curl","version":"1.0"}}}'
@@ -418,9 +443,11 @@ no offline mode: Firestore and the API remain the source of truth.
   internal `meta/runtime` lock is inaccessible to browser clients.
 - Web API routes verify a Firebase ID token with the Admin SDK and compare the
   UID to `OWNER_UID`. Other signed-in Google accounts receive `403`.
-- MCP requests require `Authorization: Bearer <MCP_BEARER_TOKEN>`. The token is
+- MCP requests require `Authorization: Bearer <MCP_BEARER_TOKEN>` or, for
+  clients without a request-header UI, the `key` query parameter. The token is
   compared in constant time and must be set in the environment. If it is not
-  set, the endpoint fails closed.
+  set, the endpoint fails closed. Prefer the header; a query token appears in
+  request logs and makes the connector URL itself a secret.
 - The MCP endpoint accepts an `Origin` header only from the app's own origin,
   Claude's web origins, or entries in `MCP_ALLOWED_ORIGINS`. Server-to-server
   Anthropic requests normally have no `Origin` header. CORS is intentionally
@@ -438,7 +465,7 @@ no offline mode: Firestore and the API remain the source of truth.
 npm test
 ```
 
-The 23 tests cover:
+The 28 tests cover:
 
 - Active time while running, paused, resumed, and stopped while paused.
 - Pause accumulation and final pause commits.
@@ -448,6 +475,8 @@ The 23 tests cover:
 - Summary totals, per-day grouping, per-tag grouping, and averages.
 - Start/pause/resume/stop transitions, starting while another session is
   running, and starting an untitled session.
+- MCP header authentication and the `?key=` fallback, including missing/wrong
+  credentials, missing server configuration, and disallowed origins.
 - Two concurrent starts: exactly one succeeds (the in-memory test store
   serializes transactions like Firestore).
 
@@ -476,9 +505,10 @@ them and rebuild/redeploy; changing only a runtime secret will not fix them.
 
 **Claude cannot connect / 401**
 Check that the connector URL ends in `/api/mcp`, that Authentication is "No sign
-in", and that the request header is exactly
-`Authorization: Bearer <token>`. Confirm `MCP_BEARER_TOKEN` is present in the
-Vercel Production environment and redeploy.
+in", and that either the request header is exactly
+`Authorization: Bearer <token>` or the URL contains the matching `?key=<token>`.
+Confirm `MCP_BEARER_TOKEN` is present in the Vercel Production environment and
+redeploy. If the token was ever posted in a screenshot or log, rotate it.
 
 **Claude sees a Vercel login page**
 Deployment Protection is gating the production URL. Disable All Deployments

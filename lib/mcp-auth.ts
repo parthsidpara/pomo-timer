@@ -14,6 +14,14 @@ function bearerToken(request: Request): string | null {
   return match?.[1]?.trim() || null;
 }
 
+function queryToken(request: Request): string | null {
+  try {
+    return new URL(request.url).searchParams.get("key")?.trim() || null;
+  } catch {
+    return null;
+  }
+}
+
 function tokenMatches(provided: string, expected: string): boolean {
   const providedBytes = Buffer.from(provided, "utf8");
   const expectedBytes = Buffer.from(expected, "utf8");
@@ -56,9 +64,12 @@ function originIsAllowed(request: Request): boolean {
 }
 
 /**
- * Static bearer-token auth for the remote MCP connector. No OAuth, no session
- * state. The 401 intentionally omits WWW-Authenticate so clients do not try
- * OAuth discovery.
+ * Static token auth for the remote MCP connector. Accepts either the preferred
+ * Authorization: Bearer header, or a `key` query parameter for clients whose
+ * connector UI cannot set custom headers. No OAuth, no session state.
+ *
+ * The 401 intentionally omits WWW-Authenticate so clients do not try OAuth
+ * discovery.
  */
 export function authorizeMcpRequest(request: Request): McpAuthorization {
   const expected = process.env.MCP_BEARER_TOKEN?.trim();
@@ -74,8 +85,11 @@ export function authorizeMcpRequest(request: Request): McpAuthorization {
     return { ok: false, status: 403, message: "Origin not allowed." };
   }
 
-  const provided = bearerToken(request);
-  if (!provided || !tokenMatches(provided, expected)) {
+  const candidates = [bearerToken(request), queryToken(request)].filter(
+    (token): token is string => token !== null,
+  );
+
+  if (!candidates.some((token) => tokenMatches(token, expected))) {
     return { ok: false, status: 401, message: "Unauthorized." };
   }
 
