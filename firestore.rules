@@ -1,0 +1,27 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Replace this with the Firebase Auth UID stored in OWNER_UID.
+    // The UID is shown in the app's "This ledger is private" screen after
+    // signing in, and under Authentication > Users in the Firebase console.
+    function isOwner() {
+      return request.auth != null
+        && request.auth.uid == 'REPLACE_WITH_OWNER_UID';
+    }
+
+    match /sessions/{sessionId} {
+      allow read, write: if isOwner();
+    }
+
+    // Internal atomic active-session pointer. The Admin SDK bypasses rules,
+    // but browser clients must never be able to read or write this document.
+    match /meta/{documentId} {
+      allow read, write: if false;
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
