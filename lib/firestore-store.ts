@@ -1,9 +1,6 @@
-import {
-  Timestamp,
-  type DocumentData,
-  type Transaction,
-} from "firebase-admin/firestore";
+import { Timestamp, type Transaction } from "firebase-admin/firestore";
 import { getDb } from "./firebase-admin";
+import { mapSessionDocument } from "./session-document";
 import type {
   SessionStore,
   SessionTransaction,
@@ -20,59 +17,6 @@ function runtimeRef() {
 
 function sessionRef(id: string) {
   return getDb().collection(SESSIONS_COLLECTION).doc(id);
-}
-
-function asDate(value: unknown): Date | null {
-  if (value instanceof Timestamp) {
-    return value.toDate();
-  }
-
-  if (value instanceof Date) {
-    return value;
-  }
-
-  if (
-    value &&
-    typeof value === "object" &&
-    "toDate" in value &&
-    typeof (value as { toDate: unknown }).toDate === "function"
-  ) {
-    return (value as { toDate(): Date }).toDate();
-  }
-
-  return null;
-}
-
-function fromFirestore(
-  id: string,
-  data: DocumentData | undefined,
-): SessionRecord | null {
-  if (!data) {
-    return null;
-  }
-
-  const start = asDate(data.start);
-  const end = asDate(data.end);
-  const pausedAt = asDate(data.paused_at);
-  const label = typeof data.label === "string" ? data.label : "";
-
-  if (!start || !label) {
-    return null;
-  }
-
-  return {
-    id: typeof data.id === "string" ? data.id : id,
-    start,
-    end,
-    pausedSeconds:
-      typeof data.paused_seconds === "number" &&
-      Number.isFinite(data.paused_seconds)
-        ? Math.max(0, data.paused_seconds)
-        : 0,
-    pausedAt,
-    label,
-    tag: typeof data.tag === "string" && data.tag ? data.tag : null,
-  };
 }
 
 function toFirestore(session: SessionRecord) {
@@ -98,7 +42,7 @@ class AdminSessionTransaction implements SessionTransaction {
 
   async getSession(id: string): Promise<SessionRecord | null> {
     const snapshot = await this.transaction.get(sessionRef(id));
-    return fromFirestore(snapshot.id, snapshot.data());
+    return mapSessionDocument(snapshot.id, snapshot.data());
   }
 
   async createSession(session: SessionRecord): Promise<void> {
@@ -133,7 +77,7 @@ export function createFirestoreStore(): SessionStore {
       }
 
       const snapshot = await sessionRef(activeId).get();
-      return fromFirestore(snapshot.id, snapshot.data());
+      return mapSessionDocument(snapshot.id, snapshot.data());
     },
 
     async querySessions(from: Date, to: Date): Promise<SessionRecord[]> {
@@ -146,7 +90,7 @@ export function createFirestoreStore(): SessionStore {
         .get();
 
       return snapshot.docs
-        .map((document) => fromFirestore(document.id, document.data()))
+        .map((document) => mapSessionDocument(document.id, document.data()))
         .filter((session): session is SessionRecord => session !== null);
     },
   };

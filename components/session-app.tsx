@@ -22,11 +22,11 @@ import { Ledger } from "./ledger";
 import { StartForm } from "./start-form";
 import { ThemeToggle } from "./theme-toggle";
 import { TimerPanel } from "./timer-panel";
-import { mapSessionDoc } from "@/lib/client-session-mapper";
 import {
   firebaseIsConfigured,
   getFirebaseClient,
 } from "@/lib/firebase-client";
+import { mapSessionDocument } from "@/lib/session-document";
 import { formatIstHeaderDate } from "@/lib/ist-dates";
 import type { SessionRecord } from "@/lib/session-types";
 
@@ -228,7 +228,7 @@ export default function SessionApp() {
 
           const next = snapshot.docs
             .map((document) =>
-              mapSessionDoc(
+              mapSessionDocument(
                 document.id,
                 document.data() as Record<string, unknown>,
               ),

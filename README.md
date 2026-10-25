@@ -481,8 +481,8 @@ The 30 tests cover:
   running, and starting an untitled session.
 - MCP header authentication and the `?key=` fallback, including missing/wrong
   credentials, missing server configuration, and disallowed origins.
-- Client-side Firestore mapping, including keeping untitled sessions visible
-  and dropping malformed documents without a start timestamp.
+- Shared Firestore document mapping used by both the browser and Admin SDK,
+  including untitled sessions and documents without a start timestamp.
 - Two concurrent starts: exactly one succeeds (the in-memory test store
   serializes transactions like Firestore).
 

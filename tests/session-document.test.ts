@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { mapSessionDoc } from "@/lib/client-session-mapper";
+import { mapSessionDocument } from "@/lib/session-document";
 
 function timestamp(iso: string) {
   return {
@@ -7,10 +7,10 @@ function timestamp(iso: string) {
   };
 }
 
-describe("client session mapper", () => {
-  it("keeps an untitled session in the live listener", () => {
+describe("shared session document mapper", () => {
+  it("keeps an untitled session visible and usable", () => {
     const start = "2026-10-25T11:30:00.000Z";
-    const session = mapSessionDoc("session-id", {
+    const session = mapSessionDocument("session-id", {
       id: "session-id",
       start: timestamp(start),
       end: null,
@@ -29,7 +29,7 @@ describe("client session mapper", () => {
 
   it("drops documents without a usable start timestamp", () => {
     expect(
-      mapSessionDoc("broken", {
+      mapSessionDocument("broken", {
         label: "Missing start",
         end: null,
       }),
