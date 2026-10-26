@@ -448,9 +448,10 @@ session stays on the timer screen so averages are stable.
   sessions.
 
 Charts group a session by its start day or week. Pauses are excluded from all
-durations. The analysis page runs its own live Firestore query for the
-8-week window (up to 1,000 sessions), so it is not limited to the 50 sessions
-shown in the timer history.
+durations. Each nonzero bar shows its active time as `HH:MM` above the bar.
+The analysis page runs its own live Firestore query for the 8-week window (up
+to 1,000 sessions), so it is not limited to the 50 sessions shown in the timer
+history.
 
 On mobile, a fixed bottom navigation bar switches between **Timer** and
 **Analysis**, with safe-area padding and an active-tab indicator. Desktop uses
@@ -497,7 +498,7 @@ local storage.
 npm test
 ```
 
-The 36 tests cover:
+The 38 tests cover:
 
 - Active time while running, paused, resumed, and stopped while paused.
 - Pause accumulation and final pause commits.
@@ -513,6 +514,7 @@ The 36 tests cover:
   including untitled sessions and documents without a start timestamp.
 - Analysis day/week bucketing in IST, zero-filled daily and weekly series,
   completed-only summaries, averages, and tag totals.
+- Chart bar time labels in `HH:MM` form.
 - Two concurrent starts: exactly one succeeds (the in-memory test store
   serializes transactions like Firestore).
 

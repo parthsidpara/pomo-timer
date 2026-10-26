@@ -1,4 +1,4 @@
-import { formatDuration } from "@/lib/ui-format";
+import { formatDuration, formatHoursMinutes } from "@/lib/ui-format";
 
 export type ChartPoint = {
   key: string;
@@ -44,9 +44,10 @@ export function BarChart({
         {points.map((point) => {
           const height =
             point.seconds > 0
-              ? Math.max(2.5, (point.seconds / max) * 100)
+              ? Math.max(2.5, (point.seconds / max) * 82)
               : 0;
           const value = formatDuration(point.seconds);
+          const barLabel = formatHoursMinutes(point.seconds);
 
           return (
             <li
@@ -56,6 +57,14 @@ export function BarChart({
               title={`${point.accessibleLabel} · ${value}`}
             >
               <span className="chart-bar-track" aria-hidden="true">
+                {point.seconds > 0 ? (
+                  <span
+                    className="chart-value"
+                    style={{ bottom: `calc(${height}% + 7px)` }}
+                  >
+                    {barLabel}
+                  </span>
+                ) : null}
                 <span
                   className={`chart-bar${point.seconds === 0 ? " is-empty" : ""}`}
                   style={{ height: `${height}%` }}

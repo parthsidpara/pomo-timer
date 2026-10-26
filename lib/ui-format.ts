@@ -11,6 +11,15 @@ export function formatTimer(seconds: number): string {
   ].join(":");
 }
 
+/** Compact hour:minute label for chart bars, e.g. 3720 → "01:02". */
+export function formatHoursMinutes(seconds: number): string {
+  const totalMinutes = Math.floor(Math.max(0, seconds) / 60);
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+
+  return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
+}
+
 export function formatDuration(seconds: number): string {
   const total = Math.max(0, Math.floor(seconds));
   const hours = Math.floor(total / 3600);

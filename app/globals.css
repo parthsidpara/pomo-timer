@@ -1198,6 +1198,7 @@ input[type="text"] {
 }
 
 .chart-bar-track {
+  position: relative;
   display: flex;
   height: 150px;
   align-items: flex-end;
@@ -1209,6 +1210,22 @@ input[type="text"] {
   );
   background-position: bottom;
   background-size: 100% 25%;
+}
+
+.chart-value {
+  position: absolute;
+  right: 0;
+  left: 0;
+  color: var(--ink-soft);
+  font-family: var(--font-mono);
+  font-size: 0.55rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: 500;
+  letter-spacing: -0.04em;
+  line-height: 1;
+  pointer-events: none;
+  text-align: center;
+  white-space: nowrap;
 }
 
 .chart-bar {
