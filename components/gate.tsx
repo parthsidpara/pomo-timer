@@ -1,5 +1,7 @@
 "use client";
 
+import { BrandMark } from "./brand-mark";
+
 type SignInPanelProps = {
   signingIn: boolean;
   error: string | null;
@@ -13,11 +15,10 @@ export function SignInPanel({
 }: SignInPanelProps) {
   return (
     <main className="gate">
-      <section className="ticket gate-ticket" aria-labelledby="gate-title">
-        <div className="ticket-top">
-          <span>Private work ledger</span>
-          <span>IST</span>
-        </div>
+      <section className="gate-panel" aria-labelledby="gate-title">
+        <BrandMark className="gate-mark" />
+
+        <p className="gate-eyebrow">Private work ledger</p>
 
         <h1 id="gate-title" className="gate-title">
           A private ledger of your working hours.
@@ -30,11 +31,14 @@ export function SignInPanel({
 
         <button
           type="button"
-          className="btn btn-primary"
+          className="btn btn-primary btn-block"
           onClick={onSignIn}
           disabled={signingIn}
           aria-busy={signingIn}
         >
+          {signingIn ? (
+            <span className="spinner" aria-hidden="true" />
+          ) : null}
           {signingIn ? "Opening Google…" : "Continue with Google"}
         </button>
 
@@ -80,11 +84,12 @@ export function StatePanel({
       {actionLabel && onAction ? (
         <button
           type="button"
-          className="btn btn-ghost"
+          className="btn btn-secondary"
           onClick={onAction}
           disabled={busy}
           aria-busy={busy}
         >
+          {busy ? <span className="spinner" aria-hidden="true" /> : null}
           {busy ? "Working…" : actionLabel}
         </button>
       ) : null}
@@ -125,9 +130,7 @@ export function LoadingPanel({
     <main className="state-page" role="status">
       <p className="state-kicker">Worklog</p>
       <h1 className="state-title">{message}</h1>
-      <div className="loading-rule" aria-hidden="true">
-        <span />
-      </div>
+      <span className="spinner spinner-accent" aria-hidden="true" />
     </main>
   );
 }

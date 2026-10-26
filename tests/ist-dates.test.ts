@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   InvalidDateRangeError,
+  formatIstDayMonth,
+  formatIstHeaderDate,
   formatIstIso,
   formatIstTime,
   istDateKey,
@@ -18,6 +20,12 @@ describe("IST dates", () => {
   it("groups a late UTC timestamp onto the next IST day", () => {
     const date = new Date("2026-10-24T20:00:00.000Z");
     expect(istDateKey(date)).toBe("2026-10-25");
+  });
+
+  it("formats compact labels for the header and chart axes", () => {
+    const date = new Date("2026-09-07T06:30:00.000Z");
+    expect(formatIstHeaderDate(date)).toBe("Mon 07 Sep 2026");
+    expect(formatIstDayMonth(date)).toBe("7 Sep");
   });
 
   it("treats date-only ranges as inclusive IST days", () => {

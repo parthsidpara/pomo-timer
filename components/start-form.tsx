@@ -12,6 +12,17 @@ type StartFormProps = {
   pending: boolean;
 };
 
+function PlayIcon() {
+  return (
+    <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
+      <path
+        d="M7.25 5.35a.7.7 0 0 1 1.07-.6l5.3 3.4a.7.7 0 0 1 0 1.18l-5.3 3.4a.7.7 0 0 1-1.07-.6V5.35Z"
+        fill="currentColor"
+      />
+    </svg>
+  );
+}
+
 export function StartForm({ onStart, pending }: StartFormProps) {
   const [label, setLabel] = useState("");
   const [tag, setTag] = useState("");
@@ -31,62 +42,68 @@ export function StartForm({ onStart, pending }: StartFormProps) {
   }
 
   return (
-    <section className="ticket start-ticket" aria-labelledby="start-title">
-      <div className="ticket-top">
+    <section className="card start-card" aria-labelledby="start-title">
+      <div className="card-kicker-row">
         <span>New session</span>
-        <span>IST</span>
+        <span className="card-kicker-quiet">IST</span>
       </div>
 
       <h1 id="start-title" className="start-title">
-        Start a session<span className="title-mark">.</span>
+        Start a session.
       </h1>
+
+      <p className="start-copy">
+        Name the work if you like. Both fields are optional.
+      </p>
 
       <form className="start-form" onSubmit={handleSubmit}>
         <div className="field">
-          <label htmlFor="session-label">
-            What are you working on?{" "}
-            <span className="label-note">optional</span>
+          <label className="field-label" htmlFor="session-label">
+            What are you working on?
           </label>
           <input
             id="session-label"
-            className="input input-label"
+            className="input"
             name="label"
             type="text"
             value={label}
             onChange={(event) => setLabel(event.target.value)}
             maxLength={200}
-            placeholder="Leave blank if you like"
+            placeholder="e.g. Finalize the settings screen"
             autoComplete="off"
           />
         </div>
 
-        <div className="start-row">
-          <div className="field">
-            <label htmlFor="session-tag">
-              Tag <span className="label-note">optional</span>
-            </label>
-            <input
-              id="session-tag"
-              className="input input-tag"
-              name="tag"
-              type="text"
-              value={tag}
-              onChange={(event) => setTag(event.target.value)}
-              maxLength={64}
-              placeholder="Project or area"
-              autoComplete="off"
-            />
-          </div>
-
-          <button
-            className="btn btn-primary"
-            type="submit"
-            disabled={pending}
-            aria-busy={pending}
-          >
-            {pending ? "Starting…" : "Start session"}
-          </button>
+        <div className="field">
+          <label className="field-label" htmlFor="session-tag">
+            Tag
+          </label>
+          <input
+            id="session-tag"
+            className="input"
+            name="tag"
+            type="text"
+            value={tag}
+            onChange={(event) => setTag(event.target.value)}
+            maxLength={64}
+            placeholder="e.g. Design"
+            autoComplete="off"
+          />
         </div>
+
+        <button
+          className="btn btn-primary btn-block"
+          type="submit"
+          disabled={pending}
+          aria-busy={pending}
+        >
+          {pending ? (
+            <span className="spinner" aria-hidden="true" />
+          ) : (
+            <PlayIcon />
+          )}
+          {pending ? "Starting…" : "Start session"}
+        </button>
       </form>
     </section>
   );

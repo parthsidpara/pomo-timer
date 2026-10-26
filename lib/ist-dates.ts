@@ -85,7 +85,7 @@ export function formatIstIso(date: Date): string {
 }
 
 export function formatIstHeaderDate(date: Date): string {
-  return longDateFormatter.format(date).replace(",", "").toUpperCase();
+  return longDateFormatter.format(date).replace(",", "").replace("Sept", "Sep");
 }
 
 export function formatIstShortDate(date: Date): string {
@@ -97,7 +97,8 @@ export function formatIstWeekday(date: Date): string {
 }
 
 export function formatIstDayMonth(date: Date): string {
-  return dayMonthFormatter.format(date);
+  // en-GB spells September as "Sept", which is too wide for 8 chart columns.
+  return dayMonthFormatter.format(date).replace("Sept", "Sep");
 }
 
 export function formatIstDayHeading(

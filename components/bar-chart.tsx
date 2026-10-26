@@ -3,6 +3,7 @@ import { formatDuration, formatHoursMinutes } from "@/lib/ui-format";
 export type ChartPoint = {
   key: string;
   label: string;
+  shortLabel?: string;
   accessibleLabel: string;
   seconds: number;
 };
@@ -29,10 +30,10 @@ export function BarChart({
     <section className="chart-card" aria-labelledby={`${id}-title`}>
       <div className="chart-head">
         <div>
-          <p className="chart-subtitle">{subtitle}</p>
           <h2 id={`${id}-title`} className="chart-title">
             {title}
           </h2>
+          <p className="chart-subtitle">{subtitle}</p>
         </div>
         <div className="chart-total">
           <span>Total</span>
@@ -70,8 +71,14 @@ export function BarChart({
                   style={{ height: `${height}%` }}
                 />
               </span>
-              <span className="chart-label" aria-hidden="true">
-                {point.label}
+              <span
+                className={`chart-label${point.shortLabel ? " has-short" : ""}`}
+                aria-hidden="true"
+              >
+                <span className="chart-label-full">{point.label}</span>
+                {point.shortLabel ? (
+                  <span className="chart-label-short">{point.shortLabel}</span>
+                ) : null}
               </span>
             </li>
           );

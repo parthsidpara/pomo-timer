@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { AppNav } from "./app-nav";
+import { BrandMark } from "./brand-mark";
 import { ThemeToggle } from "./theme-toggle";
 import { formatIstHeaderDate } from "@/lib/ist-dates";
 
@@ -17,21 +18,23 @@ export function AppTopbar({ showNav }: { showNav: boolean }) {
 
   return (
     <header className="topbar">
-      <div className="brand">
-        <span className="brand-mark" aria-hidden="true" />
-        <span className="wordmark">Worklog</span>
-      </div>
-
-      {showNav ? <AppNav variant="desktop" /> : null}
-
-      <div className="topbar-actions">
-        <div className="topbar-meta">
-          {dateLabel ? (
-            <span className="topbar-date">{dateLabel}</span>
-          ) : null}
-          <span className="timezone">IST</span>
+      <div className="topbar-inner">
+        <div className="brand">
+          <BrandMark className="brand-mark" />
+          <span className="wordmark">Worklog</span>
         </div>
-        <ThemeToggle />
+
+        {showNav ? <AppNav variant="desktop" /> : null}
+
+        <div className="topbar-actions">
+          <div className="topbar-meta">
+            {dateLabel ? (
+              <span className="topbar-date">{dateLabel}</span>
+            ) : null}
+            <span className="timezone">IST</span>
+          </div>
+          <ThemeToggle />
+        </div>
       </div>
     </header>
   );

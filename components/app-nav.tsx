@@ -68,7 +68,8 @@ export function AppNav({ variant }: AppNavProps) {
               className={`topbar-nav-link${active ? " is-active" : ""}`}
               aria-current={active ? "page" : undefined}
             >
-              {item.label}
+              <NavIcon icon={item.icon} />
+              <span>{item.label}</span>
             </Link>
           );
         })}

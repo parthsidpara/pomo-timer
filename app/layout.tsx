@@ -1,7 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import Script from "next/script";
 import "@fontsource-variable/instrument-sans";
-import "@fontsource-variable/sometype-mono";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -24,8 +23,8 @@ export const viewport: Viewport = {
   viewportFit: "cover",
   colorScheme: "light dark",
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#e6eae2" },
-    { media: "(prefers-color-scheme: dark)", color: "#0d1511" },
+    { media: "(prefers-color-scheme: light)", color: "#f2f2f7" },
+    { media: "(prefers-color-scheme: dark)", color: "#000000" },
   ],
 };
 

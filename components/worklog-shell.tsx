@@ -394,8 +394,8 @@ export function WorklogShell({ children }: { children: ReactNode }) {
 
   return (
     <>
+      <AppTopbar showNav={showNav} />
       <div className={`shell${showNav ? " has-bottom-nav" : ""}`}>
-        <AppTopbar showNav={showNav} />
         {content}
       </div>
       {showNav ? <AppNav variant="bottom" /> : null}
