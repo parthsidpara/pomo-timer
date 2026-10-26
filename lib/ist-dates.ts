@@ -36,6 +36,17 @@ const shortDateFormatter = new Intl.DateTimeFormat("en-GB", {
   year: "numeric",
 });
 
+const weekdayFormatter = new Intl.DateTimeFormat("en-GB", {
+  timeZone: IST_TIME_ZONE,
+  weekday: "short",
+});
+
+const dayMonthFormatter = new Intl.DateTimeFormat("en-GB", {
+  timeZone: IST_TIME_ZONE,
+  day: "numeric",
+  month: "short",
+});
+
 export class InvalidDateRangeError extends Error {
   constructor(message: string) {
     super(message);
@@ -79,6 +90,14 @@ export function formatIstHeaderDate(date: Date): string {
 
 export function formatIstShortDate(date: Date): string {
   return shortDateFormatter.format(date);
+}
+
+export function formatIstWeekday(date: Date): string {
+  return weekdayFormatter.format(date);
+}
+
+export function formatIstDayMonth(date: Date): string {
+  return dayMonthFormatter.format(date);
 }
 
 export function formatIstDayHeading(

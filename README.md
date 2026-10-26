@@ -1,9 +1,10 @@
 # Worklog
 
 A private, single-user work-session tracker. Start a timer with an optional
-label and tag, pause or resume it, and stop it whenever you want. There are no
-planned durations, goals, ratings, notes, or completed flags. A session with no
-label is shown as “Untitled session.”
+label and tag, pause or resume it, and stop it whenever you want. A separate
+analysis view shows daily and weekly patterns. There are no planned durations,
+goals, ratings, notes, or completed flags. A session with no label is shown as
+“Untitled session.”
 
 The same log is available to Claude through a remote MCP server:
 
@@ -55,17 +56,23 @@ but the app and MCP are the supported write paths.
 ### Key files
 
 ```
+app/(app)/layout.tsx                  persistent auth shell + navigation
+app/(app)/page.tsx                    timer and recent ledger
+app/(app)/analysis/page.tsx           analysis route
 app/api/mcp/route.ts                  stateless MCP endpoint
 app/api/sessions/[action]/route.ts    web writes: start/pause/resume/stop
-app/page.tsx                          timer screen
-components/                           timer, start form, ledger, sign-in
+components/app-nav.tsx                desktop links + mobile bottom navigation
+components/worklog-shell.tsx          auth, live sessions, sign-out gate
+components/analysis-page.tsx          analysis query + live updates
+components/bar-chart.tsx              accessible CSS bar chart
 lib/session-service.ts                shared state transitions + summaries
 lib/firestore-store.ts                Admin SDK transactions and queries
+lib/analysis.ts                       daily/weekly buckets and statistics
 firestore.rules                       owner-only security rules
 lib/mcp-tools.ts                      seven MCP tools
 lib/mcp-auth.ts                       constant-time bearer token check
 lib/ist-dates.ts                      IST parsing and display helpers
-tests/                                active-time, dates, shared service
+tests/                                timer, analysis, auth, and date tests
 public/sw.js                          pass-through PWA service worker
 ```
 
@@ -426,7 +433,28 @@ included where useful.
 - `min_minutes` filters on active minutes, excluding pauses.
 - `list_sessions` returns newest first and guards the query at 1,000 sessions.
 
-The web history shows the latest 50 sessions.
+The timer page's history shows the latest 50 sessions.
+
+## Analysis
+
+The **Analysis** tab (`/analysis`) uses completed sessions only; the running
+session stays on the timer screen so averages are stable.
+
+- **Daily** — active time for the last 7 days in IST, including today.
+- **Weekly** — active time for the last 8 Monday–Sunday weeks.
+- **Summary** — total active time, session count, average session length, and
+  longest session over the last 8 weeks.
+- **By tag** — active time per tag over the same period, including untagged
+  sessions.
+
+Charts group a session by its start day or week. Pauses are excluded from all
+durations. The analysis page runs its own live Firestore query for the
+8-week window (up to 1,000 sessions), so it is not limited to the 50 sessions
+shown in the timer history.
+
+On mobile, a fixed bottom navigation bar switches between **Timer** and
+**Analysis**, with safe-area padding and an active-tab indicator. Desktop uses
+compact navigation in the top bar.
 
 ## PWA
 
@@ -469,7 +497,7 @@ local storage.
 npm test
 ```
 
-The 30 tests cover:
+The 36 tests cover:
 
 - Active time while running, paused, resumed, and stopped while paused.
 - Pause accumulation and final pause commits.
@@ -483,6 +511,8 @@ The 30 tests cover:
   credentials, missing server configuration, and disallowed origins.
 - Shared Firestore document mapping used by both the browser and Admin SDK,
   including untitled sessions and documents without a start timestamp.
+- Analysis day/week bucketing in IST, zero-filled daily and weekly series,
+  completed-only summaries, averages, and tag totals.
 - Two concurrent starts: exactly one succeeds (the in-memory test store
   serializes transactions like Firestore).
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 import {
   GoogleAuthProvider,
   getRedirectResult,
@@ -17,20 +17,19 @@ import {
   orderBy,
   query,
 } from "firebase/firestore";
+import { AppNav } from "./app-nav";
+import { AppTopbar } from "./app-topbar";
 import { DeniedPanel, LoadingPanel, SignInPanel, StatePanel } from "./gate";
-import { Ledger } from "./ledger";
-import { StartForm } from "./start-form";
-import { ThemeToggle } from "./theme-toggle";
-import { TimerPanel } from "./timer-panel";
+import {
+  WorklogContext,
+  type PendingAction,
+} from "./worklog-context";
 import {
   firebaseIsConfigured,
   getFirebaseClient,
 } from "@/lib/firebase-client";
 import { mapSessionDocument } from "@/lib/session-document";
-import { formatIstHeaderDate } from "@/lib/ist-dates";
 import type { SessionRecord } from "@/lib/session-types";
-
-type PendingAction = "start" | "pause" | "resume" | "stop" | null;
 
 function errorCode(error: unknown): string | undefined {
   if (
@@ -62,28 +61,7 @@ function signInErrorMessage(error: unknown): string {
   }
 }
 
-function FirebaseTopbar({ dateLabel }: { dateLabel: string | null }) {
-  return (
-    <header className="topbar">
-      <div className="brand">
-        <span className="brand-mark" aria-hidden="true" />
-        <span className="wordmark">Worklog</span>
-      </div>
-
-      <div className="topbar-actions">
-        <div className="topbar-meta">
-          {dateLabel ? (
-            <span className="topbar-date">{dateLabel}</span>
-          ) : null}
-          <span className="timezone">IST</span>
-        </div>
-        <ThemeToggle />
-      </div>
-    </header>
-  );
-}
-
-export default function SessionApp() {
+export function WorklogShell({ children }: { children: ReactNode }) {
   const configured = firebaseIsConfigured();
   const [user, setUser] = useState<User | null>(null);
   const [authResolved, setAuthResolved] = useState(false);
@@ -94,15 +72,6 @@ export default function SessionApp() {
   const [syncError, setSyncError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [pending, setPending] = useState<PendingAction>(null);
-  const [now, setNow] = useState(() => Date.now());
-  const [dateLabel, setDateLabel] = useState<string | null>(null);
-
-  useEffect(() => {
-    const updateDate = () => setDateLabel(formatIstHeaderDate(new Date()));
-    updateDate();
-    const interval = window.setInterval(updateDate, 60_000);
-    return () => window.clearInterval(interval);
-  }, []);
 
   useEffect(() => {
     if (process.env.NODE_ENV !== "production") {
@@ -271,21 +240,6 @@ export default function SessionApp() {
     };
   }, [userUid]);
 
-  const activeSession = useMemo(
-    () => sessions?.find((session) => session.end === null) ?? null,
-    [sessions],
-  );
-
-  useEffect(() => {
-    if (!activeSession) {
-      return;
-    }
-
-    setNow(Date.now());
-    const interval = window.setInterval(() => setNow(Date.now()), 1000);
-    return () => window.clearInterval(interval);
-  }, [activeSession]);
-
   const mutate = useCallback(
     async (action: Exclude<PendingAction, null>, body?: object) => {
       if (!user) {
@@ -388,15 +342,8 @@ export default function SessionApp() {
     [mutate],
   );
 
-  const completedSessions = useMemo(
-    () =>
-      (sessions ?? []).filter(
-        (session): session is SessionRecord => session.end !== null,
-      ),
-    [sessions],
-  );
-
-  let content: React.ReactNode;
+  const showNav = Boolean(user) && !denied && sessions !== null;
+  let content: ReactNode;
 
   if (!configured) {
     content = (
@@ -425,64 +372,33 @@ export default function SessionApp() {
       />
     );
   } else if (sessions === null) {
-    content = (
-      <LoadingPanel
-        message={syncError ?? "Opening your ledger…"}
-      />
-    );
+    content = <LoadingPanel message={syncError ?? "Opening your ledger…"} />;
   } else {
     content = (
-      <main className="main">
-        {activeSession ? (
-          <TimerPanel
-            session={activeSession}
-            now={now}
-            pendingAction={
-              pending === "start" ? null : pending
-            }
-            onPause={() => void mutate("pause")}
-            onResume={() => void mutate("resume")}
-            onStop={() => void mutate("stop")}
-          />
-        ) : (
-          <StartForm
-            onStart={startSession}
-            pending={pending === "start"}
-          />
-        )}
-
-        {actionError ? (
-          <p className="banner banner-error" role="alert">
-            {actionError}
-          </p>
-        ) : null}
-
-        {syncError ? (
-          <p className="banner banner-warning" role="status">
-            {syncError}
-          </p>
-        ) : null}
-
-        <Ledger sessions={completedSessions} />
-
-        <footer className="account-footer">
-          <span className="account-email">{user.email}</span>
-          <button
-            type="button"
-            className="text-button"
-            onClick={() => void handleSignOut()}
-          >
-            Sign out
-          </button>
-        </footer>
-      </main>
+      <WorklogContext.Provider
+        value={{
+          user,
+          sessions,
+          syncError,
+          actionError,
+          pending,
+          mutate,
+          startSession,
+          signOut: () => void handleSignOut(),
+        }}
+      >
+        {children}
+      </WorklogContext.Provider>
     );
   }
 
   return (
-    <div className="shell">
-      <FirebaseTopbar dateLabel={dateLabel} />
-      {content}
-    </div>
+    <>
+      <div className={`shell${showNav ? " has-bottom-nav" : ""}`}>
+        <AppTopbar showNav={showNav} />
+        {content}
+      </div>
+      {showNav ? <AppNav variant="bottom" /> : null}
+    </>
   );
 }
