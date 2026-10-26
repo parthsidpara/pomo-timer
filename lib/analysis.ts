@@ -30,6 +30,7 @@ export type AnalysisData = {
   weekly: AnalysisBucket[];
   summary: AnalysisSummary;
   tags: TagTotal[];
+  today: SessionRecord[];
   windowStart: Date;
 };
 
@@ -183,6 +184,23 @@ export function buildAnalysisSummary(
   };
 }
 
+export function buildTodaySessions(
+  sessions: SessionRecord[],
+  now: Date = new Date(),
+): SessionRecord[] {
+  const today = istDateKey(now);
+  const end = now.getTime();
+
+  return sessions
+    .filter(
+      (session) =>
+        session.end !== null &&
+        session.start.getTime() <= end &&
+        istDateKey(session.start) === today,
+    )
+    .sort((a, b) => b.start.getTime() - a.start.getTime());
+}
+
 export function buildTagTotals(
   sessions: SessionRecord[],
   now: Date = new Date(),
@@ -217,6 +235,7 @@ export function buildAnalysisData(
     weekly: buildWeeklyBuckets(sessions, now),
     summary: buildAnalysisSummary(sessions, now),
     tags: buildTagTotals(sessions, now),
+    today: buildTodaySessions(sessions, now),
     windowStart: analysisWindowStart(now),
   };
 }

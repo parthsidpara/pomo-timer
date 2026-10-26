@@ -1,4 +1,5 @@
 import { BarChart, type ChartPoint } from "./bar-chart";
+import { TodaySessions } from "./today-sessions";
 import type { AnalysisData } from "@/lib/analysis";
 import {
   formatIstDayMonth,
@@ -113,6 +114,8 @@ export function AnalysisView({
             points={dailyPoints}
             emptyMessage="No completed sessions in the last 7 days."
           />
+
+          <TodaySessions sessions={analysis.today} />
 
           <BarChart
             id="weekly-chart"

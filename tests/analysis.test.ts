@@ -7,6 +7,7 @@ import {
   buildAnalysisSummary,
   buildDailyBuckets,
   buildTagTotals,
+  buildTodaySessions,
   buildWeeklyBuckets,
   istWeekStartKey,
 } from "@/lib/analysis";
@@ -201,11 +202,49 @@ describe("analysis", () => {
     ]);
   });
 
+  it("lists completed sessions started today, newest first", () => {
+    const sessions = [
+      session({
+        id: "morning",
+        start: "2026-10-26T09:00:00+05:30",
+        end: "2026-10-26T10:00:00+05:30",
+      }),
+      session({
+        id: "late-morning",
+        start: "2026-10-26T11:00:00+05:30",
+        end: "2026-10-26T11:30:00+05:30",
+      }),
+      session({
+        id: "midnight",
+        start: "2026-10-26T00:10:00+05:30",
+        end: "2026-10-26T00:20:00+05:30",
+      }),
+      session({
+        id: "running",
+        start: "2026-10-26T11:35:00+05:30",
+      }),
+      session({
+        id: "yesterday",
+        start: "2026-10-25T09:00:00+05:30",
+        end: "2026-10-25T10:00:00+05:30",
+      }),
+    ];
+
+    const today = buildTodaySessions(sessions, NOW);
+
+    expect(today.map((item) => item.id)).toEqual([
+      "late-morning",
+      "morning",
+      "midnight",
+    ]);
+  });
+
   it("builds all analysis sections from the same session set", () => {
     const analysis = buildAnalysisData([], NOW);
 
     expect(analysis.daily).toHaveLength(7);
     expect(analysis.weekly).toHaveLength(8);
+    expect(analysis.today).toEqual([]);
     expect(analysis.summary).toEqual({
       totalActiveSeconds: 0,
       completedSessionCount: 0,

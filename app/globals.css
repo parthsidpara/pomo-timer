@@ -1129,7 +1129,8 @@ input[type="text"] {
 }
 
 .chart-card,
-.tag-panel {
+.tag-panel,
+.today-panel {
   margin-top: 20px;
   padding: 22px;
   border: 1px solid var(--ticket-border);
@@ -1270,8 +1271,30 @@ input[type="text"] {
   font-size: 0.8rem;
 }
 
-.tag-panel .chart-head {
+.tag-panel .chart-head,
+.today-panel .chart-head {
   margin-bottom: 11px;
+}
+
+.today-count {
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 0.56rem;
+  letter-spacing: 0.03em;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+
+.today-empty {
+  margin: 0;
+  padding: 18px 0 4px;
+  color: var(--muted);
+  font-size: 0.82rem;
+  line-height: 1.5;
+}
+
+.today-rows .ledger-row {
+  padding: 13px 0;
 }
 
 .tag-totals {
@@ -1429,7 +1452,8 @@ input[type="text"] {
   }
 
   .chart-card,
-  .tag-panel {
+  .tag-panel,
+  .today-panel {
     padding: 19px 16px;
   }
 

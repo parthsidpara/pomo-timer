@@ -441,6 +441,8 @@ The **Analysis** tab (`/analysis`) uses completed sessions only; the running
 session stays on the timer screen so averages are stable.
 
 - **Daily** — active time for the last 7 days in IST, including today.
+- **Today’s sessions** — completed sessions that started today, newest first,
+  with their time range, label, tag, and active duration.
 - **Weekly** — active time for the last 8 Monday–Sunday weeks.
 - **Summary** — total active time, session count, average session length, and
   longest session over the last 8 weeks.
@@ -498,7 +500,7 @@ local storage.
 npm test
 ```
 
-The 38 tests cover:
+The 39 tests cover:
 
 - Active time while running, paused, resumed, and stopped while paused.
 - Pause accumulation and final pause commits.
@@ -515,6 +517,7 @@ The 38 tests cover:
 - Analysis day/week bucketing in IST, zero-filled daily and weekly series,
   completed-only summaries, averages, and tag totals.
 - Chart bar time labels in `HH:MM` form.
+- Today’s completed-session list, including IST day boundaries and ordering.
 - Two concurrent starts: exactly one succeeds (the in-memory test store
   serializes transactions like Firestore).
 
