@@ -1,5 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { authorizeMcpRequest } from "@/lib/mcp-auth";
+import {
+  allowedCorsOrigin,
+  authorizeMcpRequest,
+} from "@/lib/mcp-auth";
 
 const TOKEN = "test-token-that-is-long-enough";
 const MCP_URL = "https://worklog.example/api/mcp";
@@ -84,5 +87,18 @@ describe("MCP auth", () => {
         }),
       ),
     ).toMatchObject({ ok: false, status: 403 });
+  });
+
+  it("returns a CORS origin only when the browser origin is allowed", () => {
+    vi.stubEnv("MCP_BEARER_TOKEN", TOKEN);
+    vi.stubEnv("MCP_ALLOWED_ORIGINS", "http://localhost:8080");
+
+    expect(
+      allowedCorsOrigin(makeRequest({ origin: "http://localhost:8080" })),
+    ).toBe("http://localhost:8080");
+    expect(
+      allowedCorsOrigin(makeRequest({ origin: "https://malicious.example" })),
+    ).toBeNull();
+    expect(allowedCorsOrigin(makeRequest())).toBeNull();
   });
 });

@@ -81,6 +81,7 @@ export type SessionSummary = {
   averageSessionMinutes: number | null;
   activeMinutesByDay: Record<string, number>;
   activeMinutesByTag: Record<string, number>;
+  activeMinutesByDayAndTag: Record<string, Record<string, number>>;
 };
 
 export type UpdateSessionInput = {
@@ -423,6 +424,10 @@ export function createSessionService(
     const displays = canonicalTagDisplays(sessions);
     const byDaySeconds = new Map<string, number>();
     const byTagSeconds = new Map<string, { tag: string; seconds: number }>();
+    const byDayTagSeconds = new Map<
+      string,
+      Map<string, { tag: string; seconds: number }>
+    >();
     let totalSeconds = 0;
 
     for (const session of sessions) {
@@ -439,6 +444,14 @@ export function createSessionService(
       const current = byTagSeconds.get(key) ?? { tag, seconds: 0 };
       current.seconds += seconds;
       byTagSeconds.set(key, current);
+
+      const dayTags =
+        byDayTagSeconds.get(day) ??
+        new Map<string, { tag: string; seconds: number }>();
+      const dayTag = dayTags.get(key) ?? { tag, seconds: 0 };
+      dayTag.seconds += seconds;
+      dayTags.set(key, dayTag);
+      byDayTagSeconds.set(day, dayTags);
     }
 
     const toRoundedRecord = (values: Map<string, number>) =>
@@ -454,6 +467,19 @@ export function createSessionService(
         .map((entry) => [entry.tag, roundMinutes(entry.seconds)]),
     );
 
+    const activeMinutesByDayAndTag = Object.fromEntries(
+      [...byDayTagSeconds.entries()]
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([day, tags]) => [
+          day,
+          Object.fromEntries(
+            [...tags.values()]
+              .sort((a, b) => a.tag.localeCompare(b.tag))
+              .map((entry) => [entry.tag, roundMinutes(entry.seconds)]),
+          ),
+        ]),
+    );
+
     return {
       from,
       to,
@@ -465,6 +491,7 @@ export function createSessionService(
           : roundMinutes(totalSeconds / sessions.length),
       activeMinutesByDay: toRoundedRecord(byDaySeconds),
       activeMinutesByTag,
+      activeMinutesByDayAndTag,
     };
   }
 

@@ -64,6 +64,24 @@ function originIsAllowed(request: Request): boolean {
 }
 
 /**
+ * The normalized origin to echo for CORS, or null when there is no Origin or
+ * the origin is not allowlisted. CORS is only for browser-based hosts; the
+ * MCP token is still required for actual requests.
+ */
+export function allowedCorsOrigin(request: Request): string | null {
+  const origin = request.headers.get("origin");
+  if (!origin || !originIsAllowed(request)) {
+    return null;
+  }
+
+  try {
+    return new URL(origin).origin;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Static token auth for the remote MCP connector. Accepts either the preferred
  * Authorization: Bearer header, or a `key` query parameter for clients whose
  * connector UI cannot set custom headers. No OAuth, no session state.

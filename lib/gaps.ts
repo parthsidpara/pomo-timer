@@ -32,12 +32,24 @@ export type DaySpan = {
   sessionCount: number;
 };
 
+export type TimelineSession = {
+  id: string;
+  label: string;
+  tag: string | null;
+  start: string;
+  end: string;
+  activeMinutes: number;
+  pausedMinutes: number;
+  running: boolean;
+};
+
 export type GapAnalysis = {
   from: string;
   to: string;
   gaps: Gap[];
   overlaps: Overlap[];
   daySpans: DaySpan[];
+  sessions: TimelineSession[];
   medianBreakMinutes: number | null;
   medianAllGapMinutes: number | null;
   overnightGapCount: number;
@@ -74,6 +86,7 @@ export function buildGapAnalysis(
   );
   const gaps: Gap[] = [];
   const overlaps: Overlap[] = [];
+  const timeline: TimelineSession[] = [];
   const dayMap = new Map<
     string,
     {
@@ -107,6 +120,17 @@ export function buildGapAnalysis(
 
     const paused = pausedSecondsAt(session, end);
     const active = activeSecondsAt(session, end);
+
+    timeline.push({
+      id: session.id,
+      label: session.label,
+      tag: session.tag,
+      start: formatIstIso(session.start),
+      end: formatIstIso(end),
+      activeMinutes: roundMinutes(active),
+      pausedMinutes: roundMinutes(paused),
+      running: session.end === null,
+    });
 
     if (paused >= 1) {
       pausedSessionCount += 1;
@@ -210,6 +234,7 @@ export function buildGapAnalysis(
     gaps,
     overlaps,
     daySpans,
+    sessions: timeline,
     medianBreakMinutes: median(sameDayGapMinutes),
     medianAllGapMinutes: median(allGapMinutes),
     overnightGapCount: gaps.filter((gap) => !gap.sameDay).length,

@@ -25,6 +25,8 @@ both places.
 - Firebase Auth with Google sign-in
 - Firebase Admin SDK for server writes and auth verification
 - `mcp-handler` 2.x for a stateless Streamable HTTP MCP endpoint
+- `@modelcontextprotocol/ext-apps` 2.x for inline MCP Apps views
+- Vite + `vite-plugin-singlefile` for self-contained view bundles
 - Vitest for the shared logic tests
 
 No Cloud Functions are used.
@@ -78,9 +80,12 @@ lib/weekly-trend.ts                   Monday-Sunday trend rows
 lib/tags.ts                           case-insensitive tag helpers
 lib/periods.ts                        IST day/week/hour boundaries
 firestore.rules                       owner-only security rules
-lib/mcp-tools.ts                      seventeen MCP tools
+lib/mcp-tools.ts                      model-facing and app-only MCP tools
+lib/mcp-apps.ts                       MCP Apps resources and HTML loader
 lib/mcp-auth.ts                       constant-time bearer token check
 lib/ist-dates.ts                      IST parsing and display helpers
+mcp-apps/                             Vite source for five single-file views
+scripts/build-apps.mjs                builds each view in isolation
 tests/                                timer, analysis, auth, editing, and date tests
 public/sw.js                          pass-through PWA service worker
 ```
@@ -261,7 +266,7 @@ Copy `.env.example` to `.env.local` and fill it in:
 | `OWNER_UID` | no | The only UID allowed to use the API |
 | `FIREBASE_SERVICE_ACCOUNT_BASE64` | no | Admin SDK credentials |
 | `MCP_BEARER_TOKEN` | no | Static token for `/api/mcp` (header or `?key=` fallback) |
-| `MCP_ALLOWED_ORIGINS` | no | Extra origins for the MCP Origin check (CORS is not enabled) |
+| `MCP_ALLOWED_ORIGINS` | no | Extra browser origins allowed to call `/api/mcp`; allowlisted origins also receive CORS headers |
 
 Generate the MCP token with:
 
@@ -426,15 +431,16 @@ operations are not used; the endpoint is stateless.
 | `pause_session()` | Pauses the running/paused session. Errors if already paused. |
 | `resume_session()` | Resumes a paused session. Errors if not paused. |
 | `stop_session()` | Stops the session and returns start, end, active minutes, paused minutes, label, and tag. |
-| `current_session()` | Returns the running/paused session with its active time, or `null`. |
+| `current_session()` | Returns the running/paused session with its active time, `server_time`, or `null`. |
+| `poll_current_session()` | App-only helper with the same current-session payload; hidden from the model tool list. |
 | `list_sessions(from, to, tag?, min_minutes?)` | Lists sessions whose start is in the inclusive range. Tag matching is case-insensitive. |
-| `summary(from, to)` | Returns active minutes by IST day and tag, count, total, and average session length. |
+| `summary(from, to)` | Returns active minutes by IST day, tag, and day-and-tag, plus count, total, and average session length. |
 | `list_tags(from?, to?)` | Lists existing tags merged case-insensitively, with variants, active minutes, last use, and the untagged count. |
 | `update_session(id, tag?, label?, start?, end?)` | Edits a past or active session. Setting `end` trims and completes an active session. |
 | `delete_session(id)` | Deletes a session permanently and clears the active pointer if needed. |
 | `retag_sessions(from, to, tag, only_untagged=true)` | Bulk-assigns one tag inside a range, optionally only to untagged sessions. |
-| `summary_by_hour(from, to, include_weekday_breakdown=false)` | Returns 24 IST hourly active-minute buckets and an optional 7×24 weekday matrix. |
-| `list_gaps(from, to, min_gap_minutes=5)` | Returns gaps between sessions, per-day spans, focus ratios, median breaks, and pause counts. |
+| `summary_by_hour(from, to)` | Returns 24 IST hourly active-minute buckets and a 7×24 weekday by hour matrix. |
+| `list_gaps(from, to, min_gap_minutes=5)` | Returns gaps between sessions, the session timeline, per-day spans, focus ratios, median breaks, and pause counts. |
 | `set_goal(daily_minutes, weekly_minutes?)` | Stores daily and optional weekly active-minute targets. |
 | `goal_progress(from, to)` | Reports per-day goal progress, hits, current/longest streak, and weekly progress. |
 | `compare_periods(a_from, a_to, b_from, b_to)` | Compares totals, averages, and per-tag minutes between two periods with B-minus-A deltas. |
@@ -483,6 +489,55 @@ as the canonical display. `list_tags` exposes every variant.
   overnight gaps do not distort recovery time.
 - Analysis tools include running sessions up to the current instant and cap
   each query at 2,000 sessions, returning `truncated: true` when the cap is hit.
+
+### MCP Apps views
+
+Five tools render inline MCP Apps views when the host supports them:
+
+| Tool | Resource |
+| --- | --- |
+| `summary` | `ui://timer/summary.html` — stacked daily bars by tag |
+| `current_session` | `ui://timer/current-session.html` — live elapsed timer |
+| `summary_by_hour` | `ui://timer/hourly.html` — weekday × hour heatmap |
+| `list_gaps` | `ui://timer/gaps.html` — day timeline with gaps |
+| `compare_periods` | `ui://timer/compare.html` — side-by-side periods and deltas |
+
+The tools keep their text `content` and complete `structuredContent`, so
+text-only clients see the same data. Views are read-only.
+
+`poll_current_session` is an app-only helper (visibility `["app"]`) used by the
+live timer view every five seconds. It is hidden from the model's tool list by
+hosts that honor MCP Apps visibility metadata.
+
+The views are vanilla TypeScript and plain SVG. Each is built into one
+self-contained HTML file with no CDN imports, external fonts, or network
+access. Host theme variables and safe-area insets are applied through the
+MCP Apps SDK.
+
+```bash
+npm run build:apps   # build mcp-apps/dist/*.html
+npm run build        # builds views, then Next.js
+npm run dev          # predev builds views once
+```
+
+`mcp-apps/dist` is generated and gitignored. `next.config.ts` includes it in the
+`/api/mcp` server trace so the resource files are available on Vercel.
+
+To test locally with the ext-apps `basic-host`:
+
+```bash
+# Terminal 1: run this server on 3001 with the host origin allowed
+MCP_ALLOWED_ORIGINS=http://localhost:8080 npx next start -p 3001
+
+# Terminal 2: from a checkout of modelcontextprotocol/ext-apps at v2.0.4
+cd examples/basic-host
+npm install
+SERVERS='["http://localhost:3001/api/mcp?key=YOUR_TOKEN"]' npm run start
+# open http://localhost:8080
+```
+
+The example's `start` script uses Bun. If Bun is not installed, run its
+build step, then `npx tsx serve.ts` instead.
 
 ### Date and grouping rules
 
@@ -555,9 +610,10 @@ local storage.
   set, the endpoint fails closed. Prefer the header; a query token appears in
   request logs and makes the connector URL itself a secret.
 - The MCP endpoint accepts an `Origin` header only from the app's own origin,
-  Claude's web origins, or entries in `MCP_ALLOWED_ORIGINS`. Server-to-server
-  Anthropic requests normally have no `Origin` header. CORS is intentionally
-  not enabled; this is a server-to-server connector.
+  Claude's web origins, or entries in `MCP_ALLOWED_ORIGINS`. Allowlisted browser
+  origins also receive CORS headers, which supports local MCP Apps hosts. The
+  token is still required for every real request. Server-to-server Anthropic
+  requests normally have no `Origin` header.
 - The service account JSON is used only by server code. Do not expose it to the
   browser and do not commit it.
 - Firebase web API keys are public configuration; security is enforced by Auth
@@ -574,7 +630,7 @@ local storage.
 npm test
 ```
 
-The 70 tests cover:
+The 71 tests cover:
 
 - Active time while running, paused, resumed, and stopped while paused.
 - Pause accumulation and final pause commits.
@@ -602,6 +658,9 @@ The 70 tests cover:
   missing-goal results.
 - Period comparisons, merged tag deltas, weekly trends, and week-over-week
   changes.
+- Day-and-tag summary totals and the gap-timeline session payload used by MCP
+  Apps views.
+- CORS origin allowlisting for local browser-based MCP Apps hosts.
 - Chart bar time labels in `HH:MM` form.
 - Today’s completed-session list, including IST day boundaries and ordering.
 - Two concurrent starts: exactly one succeeds (the in-memory test store
@@ -646,6 +705,16 @@ Check Vercel function logs. The most common causes are a missing/invalid
 `FIREBASE_SERVICE_ACCOUNT_BASE64` or a Firestore rules/permission problem. MCP
 uses the Admin SDK, so its Firestore access bypasses client rules; web reads do
 not.
+
+**A view does not render**
+Confirm the tool has `_meta.ui.resourceUri`, the matching `resources/read`
+returns `text/html;profile=mcp-app`, and the connector was disconnected and
+reconnected after deployment so the tool list refreshed. In `basic-host`, set
+`MCP_ALLOWED_ORIGINS=http://localhost:8080` and use the `?key=` connector URL.
+
+**The app view is blank inside the iframe**
+Rebuild the views with `npm run build:apps` and restart the server. The view
+bundles are generated into `mcp-apps/dist` and are not committed.
 
 **A session seems missing**
 Sessions are selected by start time. A session that started before `from` is

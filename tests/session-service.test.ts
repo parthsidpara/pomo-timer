@@ -261,5 +261,9 @@ describe("shared session service", () => {
       alpha: 150,
       beta: 25,
     });
+    expect(summary.activeMinutesByDayAndTag).toEqual({
+      "2026-10-01": { alpha: 60, beta: 25 },
+      "2026-10-02": { "(untagged)": 10, alpha: 90 },
+    });
   });
 });

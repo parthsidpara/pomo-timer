@@ -94,6 +94,13 @@ describe("gap analysis", () => {
       sessionCount: 3,
     });
     expect(analysis.daySpans[0].focusRatio).toBeCloseTo(0.4028, 3);
+    expect(analysis.sessions).toHaveLength(4);
+    expect(analysis.sessions[1]).toMatchObject({
+      id: "b",
+      activeMinutes: 25,
+      pausedMinutes: 5,
+      running: false,
+    });
   });
 
   it("reports overlaps and filters short gaps", () => {

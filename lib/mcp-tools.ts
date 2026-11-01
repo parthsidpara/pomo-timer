@@ -1,4 +1,5 @@
 import type { McpServer } from "@modelcontextprotocol/server";
+import { registerAppTool } from "@modelcontextprotocol/ext-apps/server";
 import { z } from "zod";
 import { activeMinutes, pausedMinutes } from "./active-time";
 import {
@@ -8,6 +9,7 @@ import {
   parseIstInstant,
   parseIstRange,
 } from "./ist-dates";
+import { APP_RESOURCES, registerAppResources } from "./mcp-apps";
 import { serializeSession } from "./serialization";
 import { displaySessionLabel } from "./session-display";
 import {
@@ -78,6 +80,7 @@ function summaryForTool(summary: SessionSummary) {
     average_session_minutes: summary.averageSessionMinutes,
     active_minutes_by_day: summary.activeMinutesByDay,
     active_minutes_by_tag: summary.activeMinutesByTag,
+    active_minutes_by_day_and_tag: summary.activeMinutesByDayAndTag,
   };
 }
 
@@ -181,20 +184,25 @@ export function registerTools(server: McpServer): void {
       }),
   );
 
-  server.registerTool(
+  registerAppTool(
+    server,
     "current_session",
     {
       title: "Show current session",
       description:
         "Return the currently running or paused session with its elapsed active time. Returns null if no session is running.",
       inputSchema: z.object({}),
+      _meta: { ui: { resourceUri: APP_RESOURCES.currentSession.uri } },
     },
     async () =>
       runTool("current_session", async () => {
         const session = await getSessionService().currentSession();
+        const at = new Date();
+
         if (!session) {
           return {
             message: "No session is running.",
+            server_time: formatIstIso(at),
             session: null,
           };
         }
@@ -203,7 +211,30 @@ export function registerTools(server: McpServer): void {
           message: session.pausedAt
             ? `"${displaySessionLabel(session.label)}" is paused.`
             : `"${displaySessionLabel(session.label)}" is running.`,
-          session: serializeSession(session, new Date()),
+          server_time: formatIstIso(at),
+          session: serializeSession(session, at),
+        };
+      }),
+  );
+
+  registerAppTool(
+    server,
+    "poll_current_session",
+    {
+      title: "Poll current session",
+      description:
+        "Return the current session payload for the live timer view. App-only; not exposed to the model.",
+      inputSchema: z.object({}),
+      _meta: { ui: { visibility: ["app"] } },
+    },
+    async () =>
+      runTool("poll_current_session", async () => {
+        const session = await getSessionService().currentSession();
+        const at = new Date();
+
+        return {
+          server_time: formatIstIso(at),
+          session: session ? serializeSession(session, at) : null,
         };
       }),
   );
@@ -250,16 +281,18 @@ export function registerTools(server: McpServer): void {
       }),
   );
 
-  server.registerTool(
+  registerAppTool(
+    server,
     "summary",
     {
       title: "Summarize work sessions",
       description:
-        "Summarize sessions by IST start day and tag: active minutes per day, active minutes per tag, session count, and average session length. A running session contributes its active time so far.",
+        "Summarize sessions by IST start day and tag: active minutes per day, per tag, and per day-and-tag, session count, and average session length. A running session contributes its active time so far.",
       inputSchema: z.object({
         from: z.string().min(1).describe(dateRangeDescription),
         to: z.string().min(1).describe(dateRangeDescription),
       }),
+      _meta: { ui: { resourceUri: APP_RESOURCES.summary.uri } },
     },
     async ({ from, to }) =>
       runTool("summary", async () => {
@@ -468,28 +501,26 @@ export function registerTools(server: McpServer): void {
       }),
   );
 
-  server.registerTool(
+  registerAppTool(
+    server,
     "summary_by_hour",
     {
       title: "Summarize active minutes by hour",
       description:
-        "Return 24 hourly active-minute buckets in IST for a date range. Sessions are split across hour boundaries. Optionally include a Monday-Sunday by hour matrix.",
+        "Return 24 hourly active-minute buckets in IST for a date range, plus a Monday-Sunday by hour matrix. Sessions are split across hour boundaries.",
       annotations: { readOnlyHint: true },
       inputSchema: z.object({
         from: z.string().min(1).describe(dateRangeDescription),
         to: z.string().min(1).describe(dateRangeDescription),
-        include_weekday_breakdown: z
-          .boolean()
-          .default(false)
-          .describe("Include a 7-day by 24-hour breakdown."),
       }),
+      _meta: { ui: { resourceUri: APP_RESOURCES.hourly.uri } },
     },
-    async ({ from, to, include_weekday_breakdown }) =>
+    async ({ from, to }) =>
       runTool("summary_by_hour", async () => {
         const range = parseIstRange(from, to);
         const result = await getSessionService().summaryByHour({
           ...range,
-          includeWeekdayBreakdown: include_weekday_breakdown,
+          includeWeekdayBreakdown: true,
         });
 
         return {
@@ -517,12 +548,13 @@ export function registerTools(server: McpServer): void {
       }),
   );
 
-  server.registerTool(
+  registerAppTool(
+    server,
     "list_gaps",
     {
       title: "List gaps between sessions",
       description:
-        "Return gaps between consecutive sessions, per-day first start and last end, day span vs active focus, median break length, and pause counts. Gaps shorter than min_gap_minutes are omitted.",
+        "Return gaps between consecutive sessions, per-day first start and last end, day span vs active focus, the session timeline, median break length, and pause counts. Gaps shorter than min_gap_minutes are omitted.",
       annotations: { readOnlyHint: true },
       inputSchema: z.object({
         from: z.string().min(1).describe(dateRangeDescription),
@@ -533,6 +565,7 @@ export function registerTools(server: McpServer): void {
           .default(5)
           .describe("Minimum gap to report, in minutes. Defaults to 5."),
       }),
+      _meta: { ui: { resourceUri: APP_RESOURCES.gaps.uri } },
     },
     async ({ from, to, min_gap_minutes }) =>
       runTool("list_gaps", async () => {
@@ -567,6 +600,16 @@ export function registerTools(server: McpServer): void {
             paused_minutes: day.pausedMinutes,
             focus_ratio: day.focusRatio,
             session_count: day.sessionCount,
+          })),
+          sessions: result.sessions.map((session) => ({
+            id: session.id,
+            label: session.label,
+            tag: session.tag,
+            start: session.start,
+            end: session.end,
+            active_minutes: session.activeMinutes,
+            paused_minutes: session.pausedMinutes,
+            running: session.running,
           })),
           median_break_minutes: result.medianBreakMinutes,
           median_all_gap_minutes: result.medianAllGapMinutes,
@@ -673,7 +716,8 @@ export function registerTools(server: McpServer): void {
       }),
   );
 
-  server.registerTool(
+  registerAppTool(
+    server,
     "compare_periods",
     {
       title: "Compare two periods",
@@ -686,6 +730,7 @@ export function registerTools(server: McpServer): void {
         b_from: z.string().min(1).describe(dateRangeDescription),
         b_to: z.string().min(1).describe(dateRangeDescription),
       }),
+      _meta: { ui: { resourceUri: APP_RESOURCES.compare.uri } },
     },
     async ({ a_from, a_to, b_from, b_to }) =>
       runTool("compare_periods", async () => {
@@ -790,4 +835,6 @@ export function registerTools(server: McpServer): void {
         };
       }),
   );
+
+  registerAppResources(server);
 }
