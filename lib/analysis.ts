@@ -1,6 +1,10 @@
 import { activeSeconds } from "./active-time";
 import { istDateKey } from "./ist-dates";
+import { shiftDateKey, startOfIstDay, istWeekStartKey } from "./periods";
+import { canonicalTagDisplays, tagKey } from "./tags";
 import type { SessionRecord } from "./session-types";
+
+export { istWeekStartKey } from "./periods";
 
 export const ANALYSIS_DAYS = 7;
 export const ANALYSIS_WEEKS = 8;
@@ -33,23 +37,6 @@ export type AnalysisData = {
   today: SessionRecord[];
   windowStart: Date;
 };
-
-function shiftDateKey(key: string, days: number): string {
-  const date = new Date(`${key}T00:00:00.000Z`);
-  date.setUTCDate(date.getUTCDate() + days);
-  return date.toISOString().slice(0, 10);
-}
-
-function startOfIstDay(key: string): Date {
-  return new Date(`${key}T00:00:00.000+05:30`);
-}
-
-export function istWeekStartKey(date: Date): string {
-  const key = istDateKey(date);
-  const weekday = new Date(`${key}T00:00:00.000Z`).getUTCDay();
-  const daysSinceMonday = (weekday + 6) % 7;
-  return shiftDateKey(key, -daysSinceMonday);
-}
 
 export function analysisWindowStart(now: Date): Date {
   const currentWeek = istWeekStartKey(now);
@@ -205,11 +192,17 @@ export function buildTagTotals(
   sessions: SessionRecord[],
   now: Date = new Date(),
 ): TagTotal[] {
+  const completed = completedSessionsInWindow(sessions, now);
+  const displays = canonicalTagDisplays(completed);
   const totals = new Map<string, TagTotal>();
 
-  for (const session of completedSessionsInWindow(sessions, now)) {
-    const tag = session.tag ?? "(untagged)";
-    const current = totals.get(tag) ?? {
+  for (const session of completed) {
+    const key = tagKey(session.tag) ?? "(untagged)";
+    const tag =
+      key === "(untagged)"
+        ? "(untagged)"
+        : (displays.get(key) ?? session.tag ?? key);
+    const current = totals.get(key) ?? {
       tag,
       activeSeconds: 0,
       sessionCount: 0,
@@ -217,7 +210,7 @@ export function buildTagTotals(
 
     current.activeSeconds += sessionActiveSeconds(session);
     current.sessionCount += 1;
-    totals.set(tag, current);
+    totals.set(key, current);
   }
 
   return [...totals.values()].sort(

@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { activeSeconds, totalPausedSeconds } from "@/lib/active-time";
+import {
+  activeSeconds,
+  activeSecondsAt,
+  totalPausedSeconds,
+} from "@/lib/active-time";
 import type { SessionRecord } from "@/lib/session-types";
 
 const start = new Date("2026-10-25T04:00:00.000Z");
@@ -67,6 +71,31 @@ describe("active time", () => {
 
     expect(totalPausedSeconds(record, end)).toBe(210);
     expect(activeSeconds(record, end)).toBe(270);
+  });
+
+  it("clips paused intervals when measuring a sub-period", () => {
+    const record = session({
+      start: new Date("2026-10-25T09:00:00+05:30"),
+      end: new Date("2026-10-25T11:00:00+05:30"),
+      pausedSeconds: 45 * 60,
+      pauseIntervals: [
+        {
+          start: new Date("2026-10-25T09:30:00+05:30"),
+          end: new Date("2026-10-25T10:00:00+05:30"),
+        },
+        {
+          start: new Date("2026-10-25T10:30:00+05:30"),
+          end: new Date("2026-10-25T10:45:00+05:30"),
+        },
+      ],
+    });
+
+    expect(
+      activeSecondsAt(record, new Date("2026-10-25T10:15:00+05:30")),
+    ).toBe(45 * 60);
+    expect(
+      activeSecondsAt(record, new Date("2026-10-25T10:40:00+05:30")),
+    ).toBe(60 * 60);
   });
 
   it("never returns negative time for inconsistent records", () => {

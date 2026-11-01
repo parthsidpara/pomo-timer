@@ -1,4 +1,4 @@
-import type { SessionRecord } from "./session-types";
+import type { PauseInterval, SessionRecord } from "./session-types";
 
 function toDate(value: unknown): Date | null {
   if (value instanceof Date) {
@@ -15,6 +15,29 @@ function toDate(value: unknown): Date | null {
   }
 
   return null;
+}
+
+function toPauseIntervals(value: unknown): PauseInterval[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  const intervals: PauseInterval[] = [];
+
+  for (const item of value) {
+    if (!item || typeof item !== "object") {
+      continue;
+    }
+
+    const start = toDate((item as { start?: unknown }).start);
+    const end = toDate((item as { end?: unknown }).end);
+
+    if (start && end && end.getTime() >= start.getTime()) {
+      intervals.push({ start, end });
+    }
+  }
+
+  return intervals.sort((a, b) => a.start.getTime() - b.start.getTime());
 }
 
 /**
@@ -52,5 +75,6 @@ export function mapSessionDocument(
       typeof data.tag === "string" && data.tag.trim()
         ? data.tag.trim()
         : null,
+    pauseIntervals: toPauseIntervals(data.pause_intervals),
   };
 }

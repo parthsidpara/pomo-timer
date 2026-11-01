@@ -6,6 +6,7 @@ import {
   formatIstIso,
   formatIstTime,
   istDateKey,
+  parseIstInstant,
   parseIstRange,
 } from "@/lib/ist-dates";
 
@@ -53,6 +54,18 @@ describe("IST dates", () => {
 
     expect(range.from.toISOString()).toBe("2026-10-01T00:00:00.000Z");
     expect(range.to.toISOString()).toBe("2026-10-01T12:00:00.000Z");
+  });
+
+  it("parses single instants for edits", () => {
+    expect(
+      parseIstInstant("2026-10-01", "start").toISOString(),
+    ).toBe("2026-09-30T18:30:00.000Z");
+    expect(
+      parseIstInstant("2026-10-01", "end").toISOString(),
+    ).toBe("2026-10-01T18:29:59.999Z");
+    expect(
+      parseIstInstant("2026-10-01T09:30:00", "start").toISOString(),
+    ).toBe("2026-10-01T04:00:00.000Z");
   });
 
   it("rejects reversed ranges and impossible dates", () => {

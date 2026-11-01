@@ -31,6 +31,81 @@ export function activeSeconds(
   return Math.max(0, wallSeconds - totalPausedSeconds(session, at));
 }
 
+/**
+ * Active time clipped at an arbitrary instant. Unlike `activeSeconds`, this
+ * also clips a completed session whose stored end is later than `at`, which is
+ * useful for period and hourly analysis.
+ */
+/**
+ * Paused time clipped at an arbitrary instant. When a session has recorded
+ * pause intervals, only pauses inside the clipped window are counted. Older
+ * sessions fall back to the stored total.
+ */
+export function pausedSecondsAt(
+  session: SessionRecord,
+  at: Date,
+): number {
+  const endMs = Math.min(
+    session.end?.getTime() ?? at.getTime(),
+    at.getTime(),
+  );
+  const startMs = session.start.getTime();
+
+  if (endMs <= startMs) {
+    return 0;
+  }
+
+  const intervals = session.pauseIntervals ?? [];
+  const hasIntervals =
+    intervals.length > 0 ||
+    (session.pausedAt !== null && session.pausedSeconds === 0);
+
+  if (hasIntervals) {
+    let pausedSeconds = 0;
+
+    for (const interval of intervals) {
+      pausedSeconds += Math.max(
+        0,
+        (Math.min(endMs, interval.end.getTime()) -
+          Math.max(startMs, interval.start.getTime())) /
+          1000,
+      );
+    }
+
+    if (session.pausedAt) {
+      pausedSeconds += Math.max(
+        0,
+        (endMs - Math.max(startMs, session.pausedAt.getTime())) / 1000,
+      );
+    }
+
+    return pausedSeconds;
+  }
+
+  const clippedEnd = new Date(endMs);
+  return totalPausedSeconds(
+    { ...session, end: clippedEnd },
+    clippedEnd,
+  );
+}
+
+export function activeSecondsAt(
+  session: SessionRecord,
+  at: Date,
+): number {
+  const endMs = Math.min(
+    session.end?.getTime() ?? at.getTime(),
+    at.getTime(),
+  );
+
+  if (endMs <= session.start.getTime()) {
+    return 0;
+  }
+
+  const wallSeconds = (endMs - session.start.getTime()) / 1000;
+  return Math.max(0, wallSeconds - pausedSecondsAt(session, at));
+}
+
 export function roundMinutes(seconds: number): number {
   return Math.round(Math.max(0, seconds) / 6) / 10;
 }

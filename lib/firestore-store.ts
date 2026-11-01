@@ -2,6 +2,7 @@ import { Timestamp, type Transaction } from "firebase-admin/firestore";
 import { getDb } from "./firebase-admin";
 import { mapSessionDocument } from "./session-document";
 import type {
+  GoalRecord,
   SessionStore,
   SessionTransaction,
 } from "./session-store";
@@ -9,10 +10,15 @@ import type { SessionRecord } from "./session-types";
 
 const SESSIONS_COLLECTION = "sessions";
 const RUNTIME_DOCUMENT = "meta/runtime";
+const GOALS_DOCUMENT = "meta/goals";
 const QUERY_LIMIT = 1000;
 
 function runtimeRef() {
   return getDb().doc(RUNTIME_DOCUMENT);
+}
+
+function goalsRef() {
+  return getDb().doc(GOALS_DOCUMENT);
 }
 
 function sessionRef(id: string) {
@@ -28,7 +34,28 @@ function toFirestore(session: SessionRecord) {
     paused_at: session.pausedAt ? Timestamp.fromDate(session.pausedAt) : null,
     label: session.label,
     tag: session.tag,
+    pause_intervals: (session.pauseIntervals ?? []).map((interval) => ({
+      start: Timestamp.fromDate(interval.start),
+      end: Timestamp.fromDate(interval.end),
+    })),
   };
+}
+
+function dateValue(value: unknown): Date | null {
+  if (value instanceof Date) {
+    return value;
+  }
+
+  if (
+    value &&
+    typeof value === "object" &&
+    "toDate" in value &&
+    typeof (value as { toDate: unknown }).toDate === "function"
+  ) {
+    return (value as { toDate(): Date }).toDate();
+  }
+
+  return null;
 }
 
 class AdminSessionTransaction implements SessionTransaction {
@@ -51,6 +78,10 @@ class AdminSessionTransaction implements SessionTransaction {
 
   async updateSession(session: SessionRecord): Promise<void> {
     this.transaction.set(sessionRef(session.id), toFirestore(session));
+  }
+
+  async deleteSession(id: string): Promise<void> {
+    this.transaction.delete(sessionRef(id));
   }
 
   async setActiveSessionId(id: string | null): Promise<void> {
@@ -80,18 +111,70 @@ export function createFirestoreStore(): SessionStore {
       return mapSessionDocument(snapshot.id, snapshot.data());
     },
 
-    async querySessions(from: Date, to: Date): Promise<SessionRecord[]> {
+    async querySessions(
+      from: Date,
+      to: Date,
+      limit = QUERY_LIMIT,
+    ): Promise<SessionRecord[]> {
       const snapshot = await getDb()
         .collection(SESSIONS_COLLECTION)
         .where("start", ">=", Timestamp.fromDate(from))
         .where("start", "<=", Timestamp.fromDate(to))
         .orderBy("start", "asc")
-        .limit(QUERY_LIMIT)
+        .limit(Math.max(1, Math.floor(limit)))
         .get();
 
       return snapshot.docs
         .map((document) => mapSessionDocument(document.id, document.data()))
         .filter((session): session is SessionRecord => session !== null);
+    },
+
+    async updateSessionsTag(ids: string[], tag: string): Promise<void> {
+      if (ids.length === 0) {
+        return;
+      }
+
+      const writer = getDb().bulkWriter();
+      for (const id of ids) {
+        writer.update(sessionRef(id), { tag });
+      }
+      await writer.close();
+    },
+
+    async getGoal(): Promise<GoalRecord | null> {
+      const snapshot = await goalsRef().get();
+      if (!snapshot.exists) {
+        return null;
+      }
+
+      const data = snapshot.data();
+      const dailyMinutes = data?.daily_minutes;
+      if (
+        typeof dailyMinutes !== "number" ||
+        !Number.isFinite(dailyMinutes)
+      ) {
+        return null;
+      }
+
+      const weeklyMinutes = data?.weekly_minutes;
+      const updatedAt = dateValue(data?.updated_at) ?? new Date(0);
+
+      return {
+        dailyMinutes,
+        weeklyMinutes:
+          typeof weeklyMinutes === "number" && Number.isFinite(weeklyMinutes)
+            ? weeklyMinutes
+            : null,
+        updatedAt,
+      };
+    },
+
+    async setGoal(goal: GoalRecord): Promise<void> {
+      await goalsRef().set({
+        daily_minutes: goal.dailyMinutes,
+        weekly_minutes: goal.weeklyMinutes,
+        updated_at: Timestamp.fromDate(goal.updatedAt),
+      });
     },
   };
 }

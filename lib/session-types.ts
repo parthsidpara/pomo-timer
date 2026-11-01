@@ -1,3 +1,8 @@
+export type PauseInterval = {
+  start: Date;
+  end: Date;
+};
+
 export type SessionRecord = {
   id: string;
   start: Date;
@@ -6,6 +11,11 @@ export type SessionRecord = {
   pausedAt: Date | null;
   label: string;
   tag: string | null;
+  /**
+   * Completed pause spans. New sessions record these so hourly analysis can
+   * attribute active time precisely. Older documents may omit them.
+   */
+  pauseIntervals?: PauseInterval[];
 };
 
 export type StartSessionInput = {

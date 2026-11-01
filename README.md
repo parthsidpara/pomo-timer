@@ -3,18 +3,20 @@
 A private, single-user work-session tracker. Start a timer with an optional
 label and tag, pause or resume it, and stop it whenever you want. A separate
 analysis view shows daily and weekly patterns. There are no planned durations,
-goals, ratings, notes, or completed flags. A session with no label is shown as
-“Untitled session.”
+ratings, or notes. A session with no label is shown as “Untitled session.”
 
 The same log is available to Claude through a remote MCP server:
 
 - Start, pause, resume, and stop sessions.
-- Read the current session.
-- List sessions in a date range.
-- Summarize active minutes by IST day and tag.
+- Read the current session and list sessions in a date range.
+- Edit, delete, and bulk-retag sessions for corrections.
+- Summarize active minutes by IST day, tag, hour, and gap.
+- Compare periods, track weekly trends, and report goal progress.
+- List existing tags before assigning one.
 
 The web app and MCP server share one session service, so the "one running
-session" rule and active-time arithmetic behave identically from both places.
+session" rule, active-time arithmetic, and tag matching behave identically from
+both places.
 
 ## Stack
 
@@ -65,14 +67,21 @@ components/app-nav.tsx                desktop links + mobile bottom navigation
 components/worklog-shell.tsx          auth, live sessions, sign-out gate
 components/analysis-page.tsx          analysis query + live updates
 components/bar-chart.tsx              accessible CSS bar chart
-lib/session-service.ts                shared state transitions + summaries
+lib/session-service.ts                shared state transitions, editing, analysis
 lib/firestore-store.ts                Admin SDK transactions and queries
 lib/analysis.ts                       daily/weekly buckets and statistics
+lib/hourly.ts                         IST hour splitting and weekday matrix
+lib/gaps.ts                           session gaps, day spans, breaks
+lib/goals.ts                          goal progress and streaks
+lib/period-stats.ts                   period totals and comparisons
+lib/weekly-trend.ts                   Monday-Sunday trend rows
+lib/tags.ts                           case-insensitive tag helpers
+lib/periods.ts                        IST day/week/hour boundaries
 firestore.rules                       owner-only security rules
-lib/mcp-tools.ts                      seven MCP tools
+lib/mcp-tools.ts                      seventeen MCP tools
 lib/mcp-auth.ts                       constant-time bearer token check
 lib/ist-dates.ts                      IST parsing and display helpers
-tests/                                timer, analysis, auth, and date tests
+tests/                                timer, analysis, auth, editing, and date tests
 public/sw.js                          pass-through PWA service worker
 ```
 
@@ -80,26 +89,37 @@ public/sw.js                          pass-through PWA service worker
 
 ```
 sessions/{uuid}
-  id              string          UUID, also the document ID
-  start           timestamp       UTC
-  end             timestamp|null  null while running
-  paused_seconds  number          accumulated completed pauses
-  paused_at       timestamp|null  set only while currently paused
-  label           string          optional; empty string when omitted
-  tag             string|null     optional
+  id               string          UUID, also the document ID
+  start            timestamp       UTC
+  end              timestamp|null  null while running
+  paused_seconds   number          accumulated completed pauses
+  paused_at        timestamp|null  set only while currently paused
+  pause_intervals  array           [{ start, end }] completed pause spans
+  label            string          optional; empty string when omitted
+  tag              string|null     optional; compared case-insensitively
 ```
 
-There is also one internal document:
+New sessions record `pause_intervals` so hourly analysis can attribute active
+time precisely. Older sessions may not have this field; analysis falls back to
+proportional allocation for those records.
+
+There are also two internal documents:
 
 ```
 meta/runtime
   active_session_id  string|null
+
+meta/goals
+  daily_minutes      number
+  weekly_minutes     number|null
+  updated_at         timestamp
 ```
 
-It exists only to make the single-active-session rule atomic. Every
+`meta/runtime` exists only to make the single-active-session rule atomic. Every
 start/pause/resume/stop runs in a Firestore transaction that reads this
-document, so two simultaneous starts cannot both succeed. Client rules deny
-access to `meta`; only the Admin SDK uses it.
+document, so two simultaneous starts cannot both succeed. `meta/goals` stores
+the optional targets used by the goal tools. Client rules deny access to
+`meta`; only the Admin SDK uses it.
 
 ### Active time
 
@@ -407,12 +427,62 @@ operations are not used; the endpoint is stateless.
 | `resume_session()` | Resumes a paused session. Errors if not paused. |
 | `stop_session()` | Stops the session and returns start, end, active minutes, paused minutes, label, and tag. |
 | `current_session()` | Returns the running/paused session with its active time, or `null`. |
-| `list_sessions(from, to, tag?, min_minutes?)` | Lists sessions whose start is in the inclusive range. |
+| `list_sessions(from, to, tag?, min_minutes?)` | Lists sessions whose start is in the inclusive range. Tag matching is case-insensitive. |
 | `summary(from, to)` | Returns active minutes by IST day and tag, count, total, and average session length. |
+| `list_tags(from?, to?)` | Lists existing tags merged case-insensitively, with variants, active minutes, last use, and the untagged count. |
+| `update_session(id, tag?, label?, start?, end?)` | Edits a past or active session. Setting `end` trims and completes an active session. |
+| `delete_session(id)` | Deletes a session permanently and clears the active pointer if needed. |
+| `retag_sessions(from, to, tag, only_untagged=true)` | Bulk-assigns one tag inside a range, optionally only to untagged sessions. |
+| `summary_by_hour(from, to, include_weekday_breakdown=false)` | Returns 24 IST hourly active-minute buckets and an optional 7×24 weekday matrix. |
+| `list_gaps(from, to, min_gap_minutes=5)` | Returns gaps between sessions, per-day spans, focus ratios, median breaks, and pause counts. |
+| `set_goal(daily_minutes, weekly_minutes?)` | Stores daily and optional weekly active-minute targets. |
+| `goal_progress(from, to)` | Reports per-day goal progress, hits, current/longest streak, and weekly progress. |
+| `compare_periods(a_from, a_to, b_from, b_to)` | Compares totals, averages, and per-tag minutes between two periods with B-minus-A deltas. |
+| `weekly_trend(weeks)` | Returns one Monday-Sunday IST row per week with week-over-week deltas. |
 
 Timestamps in tool output are ISO 8601 with the `+05:30` offset. Active and
 paused minutes are rounded to one decimal place. `active_seconds` is also
-included where useful.
+included where useful. Session objects always include their `id`.
+`update_session` and `delete_session` also return a top-level `session_id`;
+bulk and analysis tools return the relevant session ids where useful.
+
+Tags are compared case-insensitively everywhere, but the original spelling is
+preserved. When variants are merged, the most recent session's spelling is used
+as the canonical display. `list_tags` exposes every variant.
+
+### Editing and corrections
+
+- `update_session` runs in a transaction. Omitted fields are unchanged; `null`
+  clears a label or tag.
+- `end` may be a timestamp, which trims a past session or completes an active
+  one. `end: null` is not supported: reopening a completed session could create
+  a very large accidental active time.
+- If an edit would make `paused_seconds` longer than the wall-clock span, it is
+  clamped and the tool returns `adjusted_paused_seconds: true`.
+- `delete_session` allows deleting an active session, which is useful for an
+  accidental start; the active pointer is cleared in the same transaction.
+- `retag_sessions` uses `BulkWriter`, is idempotent, and returns the affected
+  session ids. It is capped at 2,000 sessions per call and reports `truncated`.
+
+### Goals
+
+- `set_goal` writes `meta/goals`; omitting `weekly_minutes` preserves the
+  existing weekly target and `null` clears it.
+- `goal_progress` evaluates whole IST days through today and only reports data.
+- The current daily streak stays alive through yesterday when today has not hit
+  the target yet; `today_pending` makes that state explicit.
+- Goals are MCP-only for now because `meta` is denied to browser clients.
+
+### Analysis limits
+
+- `summary_by_hour` splits sessions on real IST hour boundaries. A 23:30–01:00
+  session contributes 30 minutes to hour 23 and 60 minutes to hour 0.
+- Hourly attribution is exact for sessions with `pause_intervals`; older paused
+  sessions use proportional allocation.
+- `list_gaps` reports same-day median breaks separately from all-gap medians so
+  overnight gaps do not distort recovery time.
+- Analysis tools include running sessions up to the current instant and cap
+  each query at 2,000 sessions, returning `truncated: true` when the cap is hit.
 
 ### Date and grouping rules
 
@@ -426,10 +496,10 @@ included where useful.
 - Sessions are selected by **start time** inside the range.
 - Summary days and tags are grouped by the session's **start date** in IST.
   A session crossing midnight belongs entirely to its start day.
-- A running session is included in `summary` with its active time so far.
-  Average length therefore includes any running session.
-- Untagged sessions are grouped under `(untagged)`. Tag filtering is exact and
-  case-sensitive.
+- A running session is included in summaries and analysis with its active time
+  so far. Average length therefore includes any running session.
+- Untagged sessions are grouped under `(untagged)`. Tag filtering and grouping
+  are case-insensitive; the original spelling is preserved for display.
 - `min_minutes` filters on active minutes, excluding pauses.
 - `list_sessions` returns newest first and guards the query at 1,000 sessions.
 
@@ -447,7 +517,7 @@ session stays on the timer screen so averages are stable.
 - **Summary** — total active time, session count, average session length, and
   longest session over the last 8 weeks.
 - **By tag** — active time per tag over the same period, including untagged
-  sessions.
+  sessions and merged case variants.
 
 Charts group a session by its start day or week. Pauses are excluded from all
 durations. Each nonzero bar shows its active time as `HH:MM` above the bar.
@@ -475,7 +545,8 @@ local storage.
 ## Security notes
 
 - Firestore rules allow the owner UID only; every other path is denied. The
-  internal `meta/runtime` lock is inaccessible to browser clients.
+  internal `meta/runtime` lock and `meta/goals` document are inaccessible to
+  browser clients and used only through the Admin SDK.
 - Web API routes verify a Firebase ID token with the Admin SDK and compare the
   UID to `OWNER_UID`. Other signed-in Google accounts receive `403`.
 - MCP requests require `Authorization: Bearer <MCP_BEARER_TOKEN>` or, for
@@ -493,6 +564,9 @@ local storage.
   and rules.
 - The static MCP token is simpler than OAuth by design, but it is a bearer
   credential. Rotate it if it is ever shared or logged.
+- `update_session`, `delete_session`, and `retag_sessions` are destructive MCP
+  operations available to any holder of the token. Treat the token as full
+  access to the ledger, not read-only access.
 
 ## Tests
 
@@ -500,7 +574,7 @@ local storage.
 npm test
 ```
 
-The 39 tests cover:
+The 70 tests cover:
 
 - Active time while running, paused, resumed, and stopped while paused.
 - Pause accumulation and final pause commits.
@@ -516,6 +590,18 @@ The 39 tests cover:
   including untitled sessions and documents without a start timestamp.
 - Analysis day/week bucketing in IST, zero-filled daily and weekly series,
   completed-only summaries, averages, and tag totals.
+- Case-insensitive tag filtering, merging, canonical display, variants, and
+  untagged counts.
+- Session editing, trimming an active timer, pause commits on trim, deletion of
+  active sessions, and bulk retagging.
+- Hourly splitting across midnight and hour boundaries, exact pause intervals,
+  legacy fallback allocation, and weekday matrices.
+- Gap and day-span analysis, same-day vs overnight medians, overlaps, and pause
+  counts.
+- Daily/weekly goal progress, streak boundaries, pending-today behavior, and
+  missing-goal results.
+- Period comparisons, merged tag deltas, weekly trends, and week-over-week
+  changes.
 - Chart bar time labels in `HH:MM` form.
 - Today’s completed-session list, including IST day boundaries and ordering.
 - Two concurrent starts: exactly one succeeds (the in-memory test store
@@ -570,7 +656,10 @@ outside the range even if it ended inside it. The web app only shows the latest
 
 - No Cloud Functions, scheduled jobs, or background workers.
 - One owner, one login provider, one running session.
-- No goals, planned durations, ratings, notes, completed flags, editing, or
-  deletion UI.
+- The web UI has no editing or deletion screen; those operations are available
+  through MCP. Goals are also MCP-only for now.
+- Analysis queries are capped at 2,000 sessions and report `truncated` when
+  that cap is hit.
 - No offline cache. The PWA is installable but requires a connection.
-- Serverless routes target the Vercel Hobby 10-second default.
+- The MCP route allows up to 60 seconds for bulk retagging; the web API routes
+  keep the shorter default.

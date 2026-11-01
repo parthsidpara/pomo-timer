@@ -1,9 +1,14 @@
-import type { SessionStore, SessionTransaction } from "@/lib/session-store";
+import type {
+  GoalRecord,
+  SessionStore,
+  SessionTransaction,
+} from "@/lib/session-store";
 import type { SessionRecord } from "@/lib/session-types";
 
 type State = {
   sessions: Map<string, SessionRecord>;
   activeSessionId: string | null;
+  goal: GoalRecord | null;
 };
 
 function cloneSession(session: SessionRecord): SessionRecord {
@@ -12,7 +17,15 @@ function cloneSession(session: SessionRecord): SessionRecord {
     start: new Date(session.start),
     end: session.end ? new Date(session.end) : null,
     pausedAt: session.pausedAt ? new Date(session.pausedAt) : null,
+    pauseIntervals: (session.pauseIntervals ?? []).map((interval) => ({
+      start: new Date(interval.start),
+      end: new Date(interval.end),
+    })),
   };
+}
+
+function cloneGoal(goal: GoalRecord | null): GoalRecord | null {
+  return goal ? { ...goal, updatedAt: new Date(goal.updatedAt) } : null;
 }
 
 function cloneState(state: State): State {
@@ -24,6 +37,7 @@ function cloneState(state: State): State {
       ]),
     ),
     activeSessionId: state.activeSessionId,
+    goal: cloneGoal(state.goal),
   };
 }
 
@@ -35,16 +49,22 @@ export class MemorySessionStore implements SessionStore {
   private state: State = {
     sessions: new Map(),
     activeSessionId: null,
+    goal: null,
   };
 
   private tail: Promise<void> = Promise.resolve();
 
-  seed(sessions: SessionRecord[], activeSessionId: string | null = null): void {
+  seed(
+    sessions: SessionRecord[],
+    activeSessionId: string | null = null,
+    goal: GoalRecord | null = null,
+  ): void {
     this.state = {
       sessions: new Map(
         sessions.map((session) => [session.id, cloneSession(session)]),
       ),
       activeSessionId,
+      goal: cloneGoal(goal),
     };
   }
 
@@ -56,6 +76,10 @@ export class MemorySessionStore implements SessionStore {
     return [...this.state.sessions.values()].map(cloneSession);
   }
 
+  goal(): GoalRecord | null {
+    return cloneGoal(this.state.goal);
+  }
+
   async getActiveSession(): Promise<SessionRecord | null> {
     if (!this.state.activeSessionId) {
       return null;
@@ -65,14 +89,37 @@ export class MemorySessionStore implements SessionStore {
     return session ? cloneSession(session) : null;
   }
 
-  async querySessions(from: Date, to: Date): Promise<SessionRecord[]> {
+  async querySessions(
+    from: Date,
+    to: Date,
+    limit = 1000,
+  ): Promise<SessionRecord[]> {
     return [...this.state.sessions.values()]
       .filter(
         (session) =>
           session.start.getTime() >= from.getTime() &&
           session.start.getTime() <= to.getTime(),
       )
+      .sort((a, b) => a.start.getTime() - b.start.getTime())
+      .slice(0, Math.max(1, Math.floor(limit)))
       .map(cloneSession);
+  }
+
+  async updateSessionsTag(ids: string[], tag: string): Promise<void> {
+    for (const id of ids) {
+      const session = this.state.sessions.get(id);
+      if (session) {
+        this.state.sessions.set(id, cloneSession({ ...session, tag }));
+      }
+    }
+  }
+
+  async getGoal(): Promise<GoalRecord | null> {
+    return cloneGoal(this.state.goal);
+  }
+
+  async setGoal(goal: GoalRecord): Promise<void> {
+    this.state.goal = cloneGoal(goal);
   }
 
   runTransaction<T>(
@@ -91,6 +138,9 @@ export class MemorySessionStore implements SessionStore {
         },
         updateSession: async (session) => {
           draft.sessions.set(session.id, cloneSession(session));
+        },
+        deleteSession: async (id) => {
+          draft.sessions.delete(id);
         },
         setActiveSessionId: async (id) => {
           draft.activeSessionId = id;

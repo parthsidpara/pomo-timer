@@ -249,6 +249,18 @@ export function parseIstRange(
   return { from: fromDate, to: toDate };
 }
 
+/**
+ * Parse one IST-aware instant. A date-only `start` is the beginning of that
+ * IST day; a date-only `end` is the last millisecond of that day.
+ */
+export function parseIstInstant(
+  value: string,
+  boundary: "start" | "end",
+): Date {
+  const range = parseIstRange(value, value);
+  return boundary === "start" ? range.from : range.to;
+}
+
 export function formatIstTimeRange(start: Date, end: Date): string {
   if (istDateKey(start) === istDateKey(end)) {
     return `${formatIstTime(start)}–${formatIstTime(end)}`;

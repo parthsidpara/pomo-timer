@@ -51,6 +51,7 @@ function sessionErrorStatus(code: SessionErrorCode): number {
     case "not_paused":
       return 409;
     case "no_active":
+    case "not_found":
       return 404;
   }
 }

@@ -102,6 +102,7 @@ describe("shared session service", () => {
     const resumed = await service.resumeSession();
     expect(resumed.pausedAt).toBeNull();
     expect(resumed.pausedSeconds).toBe(120);
+    expect(resumed.pauseIntervals).toHaveLength(1);
 
     advance(clock, 3 * 60);
     const stopped = await service.stopSession();
