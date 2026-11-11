@@ -12,6 +12,7 @@ const SESSIONS_COLLECTION = "sessions";
 const RUNTIME_DOCUMENT = "meta/runtime";
 const GOALS_DOCUMENT = "meta/goals";
 const QUERY_LIMIT = 1000;
+const OVERLAP_LOOKBACK_MS = 7 * 24 * 60 * 60 * 1000;
 
 function runtimeRef() {
   return getDb().doc(RUNTIME_DOCUMENT);
@@ -127,6 +128,38 @@ export function createFirestoreStore(): SessionStore {
       return snapshot.docs
         .map((document) => mapSessionDocument(document.id, document.data()))
         .filter((session): session is SessionRecord => session !== null);
+    },
+
+    async querySessionsOverlapping(
+      from: Date,
+      to: Date,
+      at: Date,
+      limit = QUERY_LIMIT,
+    ): Promise<SessionRecord[]> {
+      const snapshot = await getDb()
+        .collection(SESSIONS_COLLECTION)
+        .where(
+          "start",
+          ">=",
+          Timestamp.fromDate(
+            new Date(from.getTime() - OVERLAP_LOOKBACK_MS),
+          ),
+        )
+        .where("start", "<=", Timestamp.fromDate(to))
+        .orderBy("start", "asc")
+        .limit(Math.max(1, Math.floor(limit)))
+        .get();
+
+      return snapshot.docs
+        .map((document) => mapSessionDocument(document.id, document.data()))
+        .filter((session): session is SessionRecord => session !== null)
+        .filter((session) => {
+          const end = session.end ?? at;
+          return (
+            end.getTime() >= from.getTime() &&
+            session.start.getTime() <= at.getTime()
+          );
+        });
     },
 
     async updateSessionsTag(ids: string[], tag: string): Promise<void> {

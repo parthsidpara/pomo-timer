@@ -9,6 +9,10 @@ import { buildGoalProgress, type GoalProgress } from "./goals";
 import { buildHourlySummary, type HourlySummary } from "./hourly";
 import { formatIstIso, istDateKey } from "./ist-dates";
 import {
+  activeSecondsInRange,
+  allocateSessionByDay,
+} from "./time-allocation";
+import {
   buildPeriodComparison,
   buildPeriodStats,
   type PeriodComparison,
@@ -419,8 +423,8 @@ export function createSessionService(
   }
 
   async function summarize(from: Date, to: Date): Promise<SessionSummary> {
-    const sessions = await store.querySessions(from, to);
     const at = now();
+    const sessions = await store.querySessionsOverlapping(from, to, at);
     const displays = canonicalTagDisplays(sessions);
     const byDaySeconds = new Map<string, number>();
     const byTagSeconds = new Map<string, { tag: string; seconds: number }>();
@@ -431,27 +435,32 @@ export function createSessionService(
     let totalSeconds = 0;
 
     for (const session of sessions) {
-      const seconds = activeSeconds(session, at);
-      const day = istDateKey(session.start);
+      const sessionSeconds = activeSecondsInRange(session, from, to, at);
       const key = tagKey(session.tag) ?? "(untagged)";
       const tag =
         key === "(untagged)"
           ? "(untagged)"
           : (displays.get(key) ?? session.tag ?? key);
 
-      totalSeconds += seconds;
-      byDaySeconds.set(day, (byDaySeconds.get(day) ?? 0) + seconds);
+      totalSeconds += sessionSeconds;
       const current = byTagSeconds.get(key) ?? { tag, seconds: 0 };
-      current.seconds += seconds;
+      current.seconds += sessionSeconds;
       byTagSeconds.set(key, current);
 
-      const dayTags =
-        byDayTagSeconds.get(day) ??
-        new Map<string, { tag: string; seconds: number }>();
-      const dayTag = dayTags.get(key) ?? { tag, seconds: 0 };
-      dayTag.seconds += seconds;
-      dayTags.set(key, dayTag);
-      byDayTagSeconds.set(day, dayTags);
+      for (const allocation of allocateSessionByDay(session, from, to, at)) {
+        byDaySeconds.set(
+          allocation.date,
+          (byDaySeconds.get(allocation.date) ?? 0) + allocation.activeSeconds,
+        );
+
+        const dayTags =
+          byDayTagSeconds.get(allocation.date) ??
+          new Map<string, { tag: string; seconds: number }>();
+        const dayTag = dayTags.get(key) ?? { tag, seconds: 0 };
+        dayTag.seconds += allocation.activeSeconds;
+        dayTags.set(key, dayTag);
+        byDayTagSeconds.set(allocation.date, dayTags);
+      }
     }
 
     const toRoundedRecord = (values: Map<string, number>) =>
@@ -768,32 +777,36 @@ export function createSessionService(
   async function summaryByHour(
     input: HourlySummaryInput,
   ): Promise<HourlySummary> {
-    const sessions = await store.querySessions(
+    const at = now();
+    const sessions = await store.querySessionsOverlapping(
       input.from,
       input.to,
+      at,
       ANALYTICS_QUERY_LIMIT,
     );
     return buildHourlySummary(
       sessions,
       input.from,
       input.to,
-      now(),
+      at,
       input.includeWeekdayBreakdown,
       sessions.length >= ANALYTICS_QUERY_LIMIT,
     );
   }
 
   async function listGaps(input: GapAnalysisInput): Promise<GapAnalysis> {
-    const sessions = await store.querySessions(
+    const at = now();
+    const sessions = await store.querySessionsOverlapping(
       input.from,
       input.to,
+      at,
       ANALYTICS_QUERY_LIMIT,
     );
     return buildGapAnalysis(
       sessions,
       input.from,
       input.to,
-      now(),
+      at,
       input.minGapMinutes,
       sessions.length >= ANALYTICS_QUERY_LIMIT,
     );
@@ -802,11 +815,21 @@ export function createSessionService(
   async function comparePeriods(
     input: ComparePeriodsInput,
   ): Promise<ComparePeriodsResult> {
-    const [a, b] = await Promise.all([
-      store.querySessions(input.aFrom, input.aTo, ANALYTICS_QUERY_LIMIT),
-      store.querySessions(input.bFrom, input.bTo, ANALYTICS_QUERY_LIMIT),
-    ]);
     const at = now();
+    const [a, b] = await Promise.all([
+      store.querySessionsOverlapping(
+        input.aFrom,
+        input.aTo,
+        at,
+        ANALYTICS_QUERY_LIMIT,
+      ),
+      store.querySessionsOverlapping(
+        input.bFrom,
+        input.bTo,
+        at,
+        ANALYTICS_QUERY_LIMIT,
+      ),
+    ]);
     const displays = canonicalTagDisplays([...a, ...b]);
     const comparison = buildPeriodComparison(
       buildPeriodStats(a, input.aFrom, input.aTo, at, displays),
@@ -836,8 +859,9 @@ export function createSessionService(
     const keys = Array.from({ length: weeks }, (_, index) =>
       shiftDateKey(firstWeek, index * 7),
     );
-    const sessions = await store.querySessions(
+    const sessions = await store.querySessionsOverlapping(
       startOfIstDay(firstWeek),
+      at,
       at,
       ANALYTICS_QUERY_LIMIT,
     );
@@ -924,9 +948,10 @@ export function createSessionService(
     const sessions =
       queryFrom.getTime() > queryTo.getTime()
         ? []
-        : await store.querySessions(
+        : await store.querySessionsOverlapping(
             queryFrom,
             queryTo,
+            at,
             ANALYTICS_QUERY_LIMIT,
           );
 

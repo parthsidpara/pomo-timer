@@ -84,6 +84,26 @@ describe("hourly summary", () => {
     expect(summary.totalActiveMinutes).toBe(75);
   });
 
+  it("clips a session that started before the range", () => {
+    const summary = buildHourlySummary(
+      [
+        session({
+          id: "already-running",
+          start: new Date("2026-10-31T23:00:00+05:30"),
+          end: new Date("2026-11-01T01:00:00+05:30"),
+        }),
+      ],
+      new Date("2026-11-01T00:30:00+05:30"),
+      new Date("2026-11-01T23:59:59.999+05:30"),
+      NOW,
+      false,
+      false,
+    );
+
+    expect(summary.hours[0].activeMinutes).toBe(30);
+    expect(summary.totalActiveMinutes).toBe(30);
+  });
+
   it("falls back for older paused sessions without intervals", () => {
     const summary = buildHourlySummary(
       [

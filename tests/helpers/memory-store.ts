@@ -105,6 +105,29 @@ export class MemorySessionStore implements SessionStore {
       .map(cloneSession);
   }
 
+  async querySessionsOverlapping(
+    from: Date,
+    to: Date,
+    at: Date,
+    limit = 1000,
+  ): Promise<SessionRecord[]> {
+    const lookback = from.getTime() - 7 * 24 * 60 * 60 * 1000;
+
+    return [...this.state.sessions.values()]
+      .filter((session) => {
+        const end = session.end ?? at;
+        return (
+          session.start.getTime() >= lookback &&
+          session.start.getTime() <= to.getTime() &&
+          end.getTime() >= from.getTime() &&
+          session.start.getTime() <= at.getTime()
+        );
+      })
+      .sort((a, b) => a.start.getTime() - b.start.getTime())
+      .slice(0, Math.max(1, Math.floor(limit)))
+      .map(cloneSession);
+  }
+
   async updateSessionsTag(ids: string[], tag: string): Promise<void> {
     for (const id of ids) {
       const session = this.state.sessions.get(id);

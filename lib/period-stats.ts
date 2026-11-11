@@ -1,7 +1,11 @@
-import { activeSecondsAt, roundMinutes } from "./active-time";
-import { formatIstIso, istDateKey } from "./ist-dates";
+import { roundMinutes } from "./active-time";
+import { formatIstIso } from "./ist-dates";
 import { canonicalTagDisplays, tagKey } from "./tags";
 import type { SessionRecord } from "./session-types";
+import {
+  activeSecondsInRange,
+  allocateSessionByDay,
+} from "./time-allocation";
 
 export type PeriodStats = {
   from: string;
@@ -65,12 +69,12 @@ export function buildPeriodStats(
   now: Date,
   displays?: Map<string, string>,
 ): PeriodStats {
+  const at = new Date(Math.min(to.getTime(), now.getTime()));
   const inPeriod = sessions.filter(
     (session) =>
-      session.start.getTime() >= from.getTime() &&
-      session.start.getTime() <= to.getTime(),
+      session.start.getTime() <= at.getTime() &&
+      (session.end?.getTime() ?? at.getTime()) >= from.getTime(),
   );
-  const at = new Date(Math.min(to.getTime(), now.getTime()));
   const tagDisplays = displays ?? canonicalTagDisplays(inPeriod);
   const tagSeconds = new Map<string, { tag: string; seconds: number }>();
   const activeDays = new Set<string>();
@@ -80,14 +84,18 @@ export function buildPeriodStats(
   let running = 0;
 
   for (const session of inPeriod) {
-    if (session.start.getTime() > at.getTime()) {
-      continue;
-    }
-
-    const seconds = activeSecondsAt(session, at);
+    const seconds = activeSecondsInRange(session, from, at, now);
     totalSeconds += seconds;
     longestSeconds = Math.max(longestSeconds, seconds);
-    activeDays.add(istDateKey(session.start));
+
+    for (const allocation of allocateSessionByDay(
+      session,
+      from,
+      at,
+      now,
+    )) {
+      activeDays.add(allocation.date);
+    }
 
     if (session.end) {
       completed += 1;

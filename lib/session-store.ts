@@ -25,6 +25,12 @@ export interface SessionStore {
     to: Date,
     limit?: number,
   ): Promise<SessionRecord[]>;
+  querySessionsOverlapping(
+    from: Date,
+    to: Date,
+    at: Date,
+    limit?: number,
+  ): Promise<SessionRecord[]>;
   updateSessionsTag(ids: string[], tag: string): Promise<void>;
   getGoal(): Promise<GoalRecord | null>;
   setGoal(goal: GoalRecord): Promise<void>;

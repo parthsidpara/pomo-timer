@@ -1,14 +1,16 @@
-import { activeSecondsAt, roundMinutes } from "./active-time";
+import { roundMinutes } from "./active-time";
 import { formatIstIso, istDateKey } from "./ist-dates";
 import {
   eachIstDayKey,
   endOfIstDay,
   istWeekEndKey,
   istWeekStartKey,
+  shiftDateKey,
   startOfIstDay,
 } from "./periods";
 import type { GoalRecord } from "./session-store";
 import type { SessionRecord } from "./session-types";
+import { allocateSessionByDay } from "./time-allocation";
 
 export type GoalProgressDay = {
   date: string;
@@ -64,34 +66,51 @@ export function buildGoalProgress(
   const todayKey = istDateKey(now);
   const lastKey = toKey < todayKey ? toKey : todayKey;
   const dayKeys = fromKey <= lastKey ? eachIstDayKey(fromKey, lastKey) : [];
-  const byDay = new Map<string, SessionRecord[]>();
+  const dayStats = new Map<
+    string,
+    { activeSeconds: number; sessionCount: number }
+  >();
 
   for (const key of dayKeys) {
-    byDay.set(key, []);
+    dayStats.set(key, { activeSeconds: 0, sessionCount: 0 });
   }
 
-  for (const session of sessions) {
-    const key = istDateKey(session.start);
-    byDay.get(key)?.push(session);
+  if (dayKeys.length > 0) {
+    const rangeStart = startOfIstDay(dayKeys[0]);
+    const rangeEnd = new Date(
+      Math.min(
+        startOfIstDay(
+          shiftDateKey(dayKeys[dayKeys.length - 1], 1),
+        ).getTime(),
+        now.getTime(),
+      ),
+    );
+
+    for (const session of sessions) {
+      for (const allocation of allocateSessionByDay(
+        session,
+        rangeStart,
+        rangeEnd,
+        now,
+      )) {
+        const stats = dayStats.get(allocation.date);
+        if (!stats) {
+          continue;
+        }
+
+        stats.activeSeconds += allocation.activeSeconds;
+        stats.sessionCount += 1;
+      }
+    }
   }
 
   const exactByDay = new Map<string, number>();
   const days: GoalProgressDay[] = dayKeys.map((key) => {
-    const dayStart = startOfIstDay(key);
-    const dayEnd = endOfIstDay(key);
-    const at = new Date(Math.min(dayEnd.getTime(), now.getTime()));
-    let activeSeconds = 0;
-    let sessionCount = 0;
-
-    for (const session of byDay.get(key) ?? []) {
-      if (session.start.getTime() > at.getTime()) {
-        continue;
-      }
-
-      activeSeconds += activeSecondsAt(session, at);
-      sessionCount += 1;
-    }
-
+    const stats = dayStats.get(key) ?? {
+      activeSeconds: 0,
+      sessionCount: 0,
+    };
+    const activeSeconds = stats.activeSeconds;
     const targetMinutes = goal?.dailyMinutes ?? null;
     const met =
       targetMinutes === null
@@ -110,7 +129,7 @@ export function buildGoalProgress(
         targetMinutes === null
           ? null
           : roundRatio(activeSeconds / (targetMinutes * 60)),
-      sessionCount,
+      sessionCount: stats.sessionCount,
     };
   });
 

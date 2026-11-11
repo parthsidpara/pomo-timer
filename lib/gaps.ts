@@ -1,10 +1,10 @@
-import {
-  activeSecondsAt,
-  pausedSecondsAt,
-  roundMinutes,
-} from "./active-time";
+import { roundMinutes } from "./active-time";
 import { formatIstIso, istDateKey } from "./ist-dates";
 import type { SessionRecord } from "./session-types";
+import {
+  allocateSessionByDay,
+  pausedSecondsInRange,
+} from "./time-allocation";
 
 export type Gap = {
   afterSessionId: string;
@@ -116,21 +116,14 @@ export function buildGapAnalysis(
       continue;
     }
 
+    const paused = pausedSecondsInRange(session, from, to, now);
+    const allocations = allocateSessionByDay(session, from, to, now);
+
+    if (allocations.length === 0) {
+      continue;
+    }
+
     countedSessions += 1;
-
-    const paused = pausedSecondsAt(session, end);
-    const active = activeSecondsAt(session, end);
-
-    timeline.push({
-      id: session.id,
-      label: session.label,
-      tag: session.tag,
-      start: formatIstIso(session.start),
-      end: formatIstIso(end),
-      activeMinutes: roundMinutes(active),
-      pausedMinutes: roundMinutes(paused),
-      running: session.end === null,
-    });
 
     if (paused >= 1) {
       pausedSessionCount += 1;
@@ -140,28 +133,40 @@ export function buildGapAnalysis(
       (session.pauseIntervals?.length ?? 0) +
       (session.pausedAt ? 1 : 0);
 
-    const date = istDateKey(session.start);
-    const day = dayMap.get(date);
-
-    if (!day) {
-      dayMap.set(date, {
-        date,
-        firstStart: session.start,
-        lastEnd: end,
-        activeSeconds: active,
-        pausedSeconds: paused,
-        sessionCount: 1,
+    for (const allocation of allocations) {
+      timeline.push({
+        id: session.id,
+        label: session.label,
+        tag: session.tag,
+        start: formatIstIso(allocation.start),
+        end: formatIstIso(allocation.end),
+        activeMinutes: roundMinutes(allocation.activeSeconds),
+        pausedMinutes: roundMinutes(allocation.pausedSeconds),
+        running: session.end === null,
       });
-    } else {
-      if (session.start < day.firstStart) {
-        day.firstStart = session.start;
+
+      const day = dayMap.get(allocation.date);
+
+      if (!day) {
+        dayMap.set(allocation.date, {
+          date: allocation.date,
+          firstStart: allocation.start,
+          lastEnd: allocation.end,
+          activeSeconds: allocation.activeSeconds,
+          pausedSeconds: allocation.pausedSeconds,
+          sessionCount: 1,
+        });
+      } else {
+        if (allocation.start < day.firstStart) {
+          day.firstStart = allocation.start;
+        }
+        if (allocation.end > day.lastEnd) {
+          day.lastEnd = allocation.end;
+        }
+        day.activeSeconds += allocation.activeSeconds;
+        day.pausedSeconds += allocation.pausedSeconds;
+        day.sessionCount += 1;
       }
-      if (end > day.lastEnd) {
-        day.lastEnd = end;
-      }
-      day.activeSeconds += active;
-      day.pausedSeconds += paused;
-      day.sessionCount += 1;
     }
   }
 

@@ -39,17 +39,6 @@ export function buildWeeklyTrend(
   truncated: boolean,
 ): WeeklyTrend {
   const displays = canonicalTagDisplays(sessions);
-  const grouped = new Map<string, SessionRecord[]>();
-
-  for (const key of weekStartKeys) {
-    grouped.set(key, []);
-  }
-
-  for (const session of sessions) {
-    const key = istWeekStartKey(session.start);
-    grouped.get(key)?.push(session);
-  }
-
   const rows: WeeklyTrendRow[] = [];
   let previousMinutes: number | null = null;
 
@@ -60,7 +49,7 @@ export function buildWeeklyTrend(
     const partial = now.getTime() < weekEnd.getTime();
     const to = partial ? now : weekEnd;
     const stats = buildPeriodStats(
-      grouped.get(key) ?? [],
+      sessions,
       from,
       to,
       now,

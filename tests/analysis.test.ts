@@ -87,6 +87,36 @@ describe("analysis", () => {
     );
   });
 
+  it("splits a session across midnight in daily and weekly buckets", () => {
+    const sessions = [
+      session({
+        id: "overnight",
+        start: "2026-10-25T23:00:00+05:30",
+        end: "2026-10-26T01:00:00+05:30",
+      }),
+    ];
+
+    const daily = buildDailyBuckets(sessions, NOW);
+    const weekly = buildWeeklyBuckets(sessions, NOW);
+
+    expect(daily.find((bucket) => bucket.key === "2026-10-25")).toMatchObject({
+      activeSeconds: 3600,
+      sessionCount: 1,
+    });
+    expect(daily.find((bucket) => bucket.key === "2026-10-26")).toMatchObject({
+      activeSeconds: 3600,
+      sessionCount: 1,
+    });
+    expect(weekly.find((bucket) => bucket.key === "2026-10-19")).toMatchObject({
+      activeSeconds: 3600,
+      sessionCount: 1,
+    });
+    expect(weekly.find((bucket) => bucket.key === "2026-10-26")).toMatchObject({
+      activeSeconds: 3600,
+      sessionCount: 1,
+    });
+  });
+
   it("groups weeks Monday through Sunday in IST", () => {
     const sessions = [
       session({

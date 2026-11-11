@@ -266,4 +266,38 @@ describe("shared session service", () => {
       "2026-10-02": { "(untagged)": 10, alpha: 90 },
     });
   });
+
+  it("splits cross-midnight sessions across IST days in summaries", async () => {
+    clock.value = new Date("2026-10-26T06:30:00.000Z");
+    store.seed([
+      makeSession({
+        id: "overnight",
+        start: new Date("2026-10-25T23:00:00+05:30"),
+        end: new Date("2026-10-26T01:00:00+05:30"),
+        label: "Overnight",
+        tag: "night",
+      }),
+    ]);
+
+    const range = parseIstRange("2026-10-25", "2026-10-26");
+    const summary = await service.summarize(range.from, range.to);
+
+    expect(summary.sessionCount).toBe(1);
+    expect(summary.totalActiveMinutes).toBe(120);
+    expect(summary.activeMinutesByDay).toEqual({
+      "2026-10-25": 60,
+      "2026-10-26": 60,
+    });
+    expect(summary.activeMinutesByDayAndTag).toEqual({
+      "2026-10-25": { night: 60 },
+      "2026-10-26": { night: 60 },
+    });
+    expect(summary.activeMinutesByTag).toEqual({ night: 120 });
+
+    const nextDay = parseIstRange("2026-10-26", "2026-10-26");
+    const daySummary = await service.summarize(nextDay.from, nextDay.to);
+
+    expect(daySummary.totalActiveMinutes).toBe(60);
+    expect(daySummary.activeMinutesByDay).toEqual({ "2026-10-26": 60 });
+  });
 });

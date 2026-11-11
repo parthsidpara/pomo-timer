@@ -103,6 +103,37 @@ describe("gap analysis", () => {
     });
   });
 
+  it("splits a cross-midnight session across day spans", () => {
+    const analysis = buildGapAnalysis(
+      [
+        session({
+          id: "overnight",
+          start: "2026-10-31T23:00:00+05:30",
+          end: "2026-11-01T01:00:00+05:30",
+        }),
+      ],
+      new Date("2026-10-31T00:00:00+05:30"),
+      new Date("2026-11-01T23:59:59.999+05:30"),
+      NOW,
+      5,
+      false,
+    );
+
+    expect(analysis.sessionCount).toBe(1);
+    expect(analysis.daySpans).toHaveLength(2);
+    expect(analysis.daySpans[0]).toMatchObject({
+      date: "2026-10-31",
+      activeMinutes: 60,
+    });
+    expect(analysis.daySpans[1]).toMatchObject({
+      date: "2026-11-01",
+      activeMinutes: 60,
+    });
+    expect(analysis.sessions).toHaveLength(2);
+    expect(analysis.sessions[0].start).toContain("2026-10-31T23:00");
+    expect(analysis.sessions[1].start).toContain("2026-11-01T00:00");
+  });
+
   it("reports overlaps and filters short gaps", () => {
     const analysis = buildGapAnalysis(
       [

@@ -108,6 +108,38 @@ describe("period comparisons", () => {
     expect(result.truncated).toEqual({ a: false, b: false });
   });
 
+  it("splits a session across comparison period boundaries", async () => {
+    store.seed([
+      session({
+        id: "overnight",
+        start: "2026-10-25T23:00:00+05:30",
+        minutes: 120,
+        tag: "night",
+      }),
+    ]);
+
+    const result = await service.comparePeriods({
+      aFrom: new Date("2026-10-19T00:00:00+05:30"),
+      aTo: new Date("2026-10-25T23:59:59.999+05:30"),
+      bFrom: new Date("2026-10-26T00:00:00+05:30"),
+      bTo: new Date("2026-11-01T23:59:59.999+05:30"),
+    });
+
+    expect(result.periodA.totalActiveMinutes).toBe(60);
+    expect(result.periodB.totalActiveMinutes).toBe(60);
+    expect(result.periodA.sessionCount).toBe(1);
+    expect(result.periodB.sessionCount).toBe(1);
+    expect(result.tagDeltas).toEqual([
+      {
+        tag: "night",
+        aMinutes: 60,
+        bMinutes: 60,
+        deltaMinutes: 0,
+        deltaPercent: 0,
+      },
+    ]);
+  });
+
   it("returns one row per week with week-over-week deltas", async () => {
     const trend = await service.weeklyTrend(2);
 

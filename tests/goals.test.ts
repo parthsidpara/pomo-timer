@@ -102,6 +102,71 @@ describe("goals", () => {
     });
   });
 
+  it("counts a session ending exactly at midnight as the full target", async () => {
+    await service.setGoal({ dailyMinutes: 60 });
+    store.seed(
+      [
+        {
+          id: "until-midnight",
+          start: new Date("2026-10-31T23:00:00+05:30"),
+          end: new Date("2026-11-01T00:00:00+05:30"),
+          pausedSeconds: 0,
+          pausedAt: null,
+          label: "Until midnight",
+          tag: null,
+          pauseIntervals: [],
+        },
+      ],
+      null,
+      store.goal(),
+    );
+
+    const progress = await service.goalProgress(
+      new Date("2026-10-31T00:00:00+05:30"),
+      new Date("2026-10-31T23:59:59.999+05:30"),
+    );
+
+    expect(progress.days[0]).toMatchObject({
+      date: "2026-10-31",
+      activeMinutes: 60,
+      met: true,
+    });
+  });
+
+  it("splits a cross-midnight session across goal days", async () => {
+    await service.setGoal({ dailyMinutes: 60 });
+    store.seed(
+      [
+        {
+          id: "overnight",
+          start: new Date("2026-10-31T23:00:00+05:30"),
+          end: new Date("2026-11-01T01:00:00+05:30"),
+          pausedSeconds: 0,
+          pausedAt: null,
+          label: "Overnight",
+          tag: null,
+          pauseIntervals: [],
+        },
+      ],
+      null,
+      store.goal(),
+    );
+
+    const progress = await service.goalProgress(
+      new Date("2026-10-31T00:00:00+05:30"),
+      new Date("2026-11-01T23:59:59.999+05:30"),
+    );
+
+    expect(progress.days).toMatchObject([
+      { date: "2026-10-31", activeMinutes: 60, met: true },
+      { date: "2026-11-01", activeMinutes: 60, met: true },
+    ]);
+    expect(progress.daysHit).toEqual(["2026-10-31", "2026-11-01"]);
+    expect(progress.currentStreak).toBe(2);
+    expect(progress.longestStreak).toBe(2);
+    expect(progress.weeks[0]?.activeMinutes).toBe(120);
+  });
+
   it("keeps the current streak alive through yesterday when today is pending", async () => {
     await service.setGoal({ dailyMinutes: 60 });
     store.seed(

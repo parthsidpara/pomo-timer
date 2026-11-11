@@ -549,8 +549,9 @@ build step, then `npx tsx serve.ts` instead.
   as IST.
 - A datetime with `Z` or an explicit offset is treated as that exact instant.
 - Sessions are selected by **start time** inside the range.
-- Summary days and tags are grouped by the session's **start date** in IST.
-  A session crossing midnight belongs entirely to its start day.
+- Daily, weekly, goal, and comparison totals split a session's active time at
+  IST day and week boundaries. A 23:00–01:00 session contributes one hour to
+  each day. `list_sessions` still selects sessions by start time.
 - A running session is included in summaries and analysis with its active time
   so far. Average length therefore includes any running session.
 - Untagged sessions are grouped under `(untagged)`. Tag filtering and grouping
@@ -574,7 +575,8 @@ session stays on the timer screen so averages are stable.
 - **By tag** — active time per tag over the same period, including untagged
   sessions and merged case variants.
 
-Charts group a session by its start day or week. Pauses are excluded from all
+Charts split a session across IST day and week boundaries, so a session
+crossing midnight is counted on both days. Pauses are excluded from all
 durations. Each nonzero bar shows its active time as `HH:MM` above the bar.
 The analysis page runs its own live Firestore query for the 8-week window (up
 to 1,000 sessions), so it is not limited to the 50 sessions shown in the timer
@@ -630,7 +632,7 @@ local storage.
 npm test
 ```
 
-The 71 tests cover:
+The 83 tests cover:
 
 - Active time while running, paused, resumed, and stopped while paused.
 - Pause accumulation and final pause commits.
@@ -652,6 +654,8 @@ The 71 tests cover:
   active sessions, and bulk retagging.
 - Hourly splitting across midnight and hour boundaries, exact pause intervals,
   legacy fallback allocation, and weekday matrices.
+- Shared day/week allocation for cross-midnight sessions, including pauses,
+  goal progress, period comparisons, and gap day spans.
 - Gap and day-span analysis, same-day vs overnight medians, overlaps, and pause
   counts.
 - Daily/weekly goal progress, streak boundaries, pending-today behavior, and

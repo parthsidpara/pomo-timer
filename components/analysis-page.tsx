@@ -20,6 +20,7 @@ import { mapSessionDocument } from "@/lib/session-document";
 import type { SessionRecord } from "@/lib/session-types";
 
 const QUERY_LIMIT = 1000;
+const QUERY_LOOKBACK_MS = 2 * 24 * 60 * 60 * 1000;
 
 export function AnalysisPage() {
   const [sessions, setSessions] = useState<SessionRecord[] | null>(null);
@@ -47,7 +48,7 @@ export function AnalysisPage() {
         where(
           "start",
           ">=",
-          Timestamp.fromDate(new Date(windowStartMs)),
+          Timestamp.fromDate(new Date(windowStartMs - QUERY_LOOKBACK_MS)),
         ),
         orderBy("start", "desc"),
         limit(QUERY_LIMIT),

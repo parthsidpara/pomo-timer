@@ -1,4 +1,8 @@
-import { activeSeconds } from "./active-time";
+import {
+  activeSecondsInRange,
+  allocateSessionByDay,
+  allocateSessionByWeek,
+} from "./time-allocation";
 import { istDateKey } from "./ist-dates";
 import { shiftDateKey, startOfIstDay, istWeekStartKey } from "./periods";
 import { canonicalTagDisplays, tagKey } from "./tags";
@@ -57,13 +61,9 @@ function completedSessionsInWindow(
   return sessions.filter(
     (session) =>
       session.end !== null &&
-      session.start.getTime() >= start &&
-      session.start.getTime() <= end,
+      session.start.getTime() <= end &&
+      session.end.getTime() > start,
   );
-}
-
-function sessionActiveSeconds(session: SessionRecord): number {
-  return activeSeconds(session, session.end ?? new Date());
 }
 
 export function buildDailyBuckets(
@@ -86,19 +86,27 @@ export function buildDailyBuckets(
       },
     ]),
   );
+  const windowStart = analysisWindowStart(now);
 
   for (const session of sessions) {
     if (!session.end) {
       continue;
     }
 
-    const bucket = buckets.get(istDateKey(session.start));
-    if (!bucket) {
-      continue;
-    }
+    for (const allocation of allocateSessionByDay(
+      session,
+      windowStart,
+      now,
+      now,
+    )) {
+      const bucket = buckets.get(allocation.date);
+      if (!bucket) {
+        continue;
+      }
 
-    bucket.activeSeconds += sessionActiveSeconds(session);
-    bucket.sessionCount += 1;
+      bucket.activeSeconds += allocation.activeSeconds;
+      bucket.sessionCount += 1;
+    }
   }
 
   return keys.map((key) => buckets.get(key)!);
@@ -127,19 +135,27 @@ export function buildWeeklyBuckets(
       },
     ]),
   );
+  const windowStart = analysisWindowStart(now);
 
   for (const session of sessions) {
     if (!session.end) {
       continue;
     }
 
-    const bucket = buckets.get(istWeekStartKey(session.start));
-    if (!bucket) {
-      continue;
-    }
+    for (const allocation of allocateSessionByWeek(
+      session,
+      windowStart,
+      now,
+      now,
+    )) {
+      const bucket = buckets.get(allocation.weekStart);
+      if (!bucket) {
+        continue;
+      }
 
-    bucket.activeSeconds += sessionActiveSeconds(session);
-    bucket.sessionCount += 1;
+      bucket.activeSeconds += allocation.activeSeconds;
+      bucket.sessionCount += 1;
+    }
   }
 
   return keys.map((key) => buckets.get(key)!);
@@ -150,13 +166,20 @@ export function buildAnalysisSummary(
   now: Date = new Date(),
 ): AnalysisSummary {
   const completed = completedSessionsInWindow(sessions, now);
+  const windowStart = analysisWindowStart(now);
   let totalActiveSeconds = 0;
   let longestActiveSeconds = 0;
 
   for (const session of completed) {
-    const seconds = sessionActiveSeconds(session);
+    const seconds = activeSecondsInRange(session, windowStart, now, now);
+    const fullSeconds = activeSecondsInRange(
+      session,
+      session.start,
+      session.end ?? now,
+      now,
+    );
     totalActiveSeconds += seconds;
-    longestActiveSeconds = Math.max(longestActiveSeconds, seconds);
+    longestActiveSeconds = Math.max(longestActiveSeconds, fullSeconds);
   }
 
   return {
@@ -194,6 +217,7 @@ export function buildTagTotals(
 ): TagTotal[] {
   const completed = completedSessionsInWindow(sessions, now);
   const displays = canonicalTagDisplays(completed);
+  const windowStart = analysisWindowStart(now);
   const totals = new Map<string, TagTotal>();
 
   for (const session of completed) {
@@ -208,7 +232,12 @@ export function buildTagTotals(
       sessionCount: 0,
     };
 
-    current.activeSeconds += sessionActiveSeconds(session);
+    current.activeSeconds += activeSecondsInRange(
+      session,
+      windowStart,
+      now,
+      now,
+    );
     current.sessionCount += 1;
     totals.set(key, current);
   }
