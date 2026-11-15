@@ -343,6 +343,8 @@ export function WorklogShell({ children }: { children: ReactNode }) {
   );
 
   const showNav = Boolean(user) && !denied && sessions !== null;
+  const signedOut =
+    configured && authResolved && !user && !denied;
   let content: ReactNode;
 
   if (!configured) {
@@ -394,8 +396,10 @@ export function WorklogShell({ children }: { children: ReactNode }) {
 
   return (
     <>
-      <AppTopbar showNav={showNav} />
-      <div className={`shell${showNav ? " has-bottom-nav" : ""}`}>
+      <AppTopbar showNav={showNav} wide={signedOut} />
+      <div
+        className={`shell${showNav ? " has-bottom-nav" : ""}${signedOut ? " shell-signed-out" : ""}`}
+      >
         {content}
       </div>
       {showNav ? <AppNav variant="bottom" /> : null}

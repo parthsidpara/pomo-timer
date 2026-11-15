@@ -13,41 +13,70 @@ export function SignInPanel({
   error,
   onSignIn,
 }: SignInPanelProps) {
+  const previewBars = [42, 68, 34, 78, 52, 88, 61];
+
   return (
     <main className="gate">
-      <section className="gate-panel" aria-labelledby="gate-title">
-        <BrandMark className="gate-mark" />
+      <div className="gate-layout">
+        <section className="gate-intro" aria-labelledby="gate-title">
+          <BrandMark className="gate-mark" />
 
-        <p className="gate-eyebrow">Private work ledger</p>
+          <h1 id="gate-title" className="gate-title">
+            A personal timer to record my work sessions.
+          </h1>
 
-        <h1 id="gate-title" className="gate-title">
-          A private ledger of your working hours.
-        </h1>
-
-        <p className="gate-copy">
-          Sign in with the Google account that owns this log. There is one
-          owner, one running session, and no one else.
-        </p>
-
-        <button
-          type="button"
-          className="btn btn-primary btn-block"
-          onClick={onSignIn}
-          disabled={signingIn}
-          aria-busy={signingIn}
-        >
-          {signingIn ? (
-            <span className="spinner" aria-hidden="true" />
-          ) : null}
-          {signingIn ? "Opening Google…" : "Continue with Google"}
-        </button>
-
-        {error ? (
-          <p className="banner banner-error" role="alert">
-            {error}
+          <p className="gate-copy">
+            I wasn&apos;t able to find a time tracker with an MCP connector, so
+            I created this.
           </p>
-        ) : null}
-      </section>
+
+          <p className="gate-copy">
+            It records my sessions and keeps the log available to Claude.
+          </p>
+
+          <div className="gate-preview" aria-hidden="true">
+            {previewBars.map((height, index) => (
+              <span
+                key={index}
+                className="gate-preview-bar"
+                style={{ height: `${height}%` }}
+              />
+            ))}
+          </div>
+        </section>
+
+        <section
+          className="gate-signin"
+          aria-labelledby="gate-signin-title"
+        >
+          <h2 id="gate-signin-title" className="gate-signin-title">
+            Sign in
+          </h2>
+
+          <p className="gate-signin-copy">
+            Sign in with Google to open the log.
+          </p>
+
+          <button
+            type="button"
+            className="btn btn-primary btn-block"
+            onClick={onSignIn}
+            disabled={signingIn}
+            aria-busy={signingIn}
+          >
+            {signingIn ? (
+              <span className="spinner" aria-hidden="true" />
+            ) : null}
+            {signingIn ? "Opening Google…" : "Continue with Google"}
+          </button>
+
+          {error ? (
+            <p className="banner banner-error" role="alert">
+              {error}
+            </p>
+          ) : null}
+        </section>
+      </div>
     </main>
   );
 }
