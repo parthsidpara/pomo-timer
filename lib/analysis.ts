@@ -36,10 +36,17 @@ export type TagTotal = {
 export type AnalysisData = {
   daily: AnalysisBucket[];
   weekly: AnalysisBucket[];
+  weeks: AnalysisWeek[];
   summary: AnalysisSummary;
   tags: TagTotal[];
   today: SessionRecord[];
   windowStart: Date;
+};
+
+export type AnalysisWeek = {
+  key: string;
+  start: Date;
+  days: AnalysisBucket[];
 };
 
 export function analysisWindowStart(now: Date): Date {
@@ -248,6 +255,63 @@ export function buildTagTotals(
   );
 }
 
+export function buildWeekDetails(
+  sessions: SessionRecord[],
+  now: Date = new Date(),
+): AnalysisWeek[] {
+  const currentWeek = istWeekStartKey(now);
+  const weekKeys = Array.from({ length: ANALYSIS_WEEKS }, (_, index) =>
+    shiftDateKey(
+      currentWeek,
+      (index - (ANALYSIS_WEEKS - 1)) * 7,
+    ),
+  );
+  const weeks = weekKeys.map((key) => ({
+    key,
+    start: startOfIstDay(key),
+    days: Array.from({ length: 7 }, (_, dayIndex) => {
+      const dayKey = shiftDateKey(key, dayIndex);
+      return {
+        key: dayKey,
+        start: startOfIstDay(dayKey),
+        activeSeconds: 0,
+        sessionCount: 0,
+      };
+    }),
+  }));
+  const byDate = new Map<string, AnalysisBucket>();
+
+  for (const week of weeks) {
+    for (const day of week.days) {
+      byDate.set(day.key, day);
+    }
+  }
+
+  const windowStart = analysisWindowStart(now);
+  for (const session of sessions) {
+    if (!session.end) {
+      continue;
+    }
+
+    for (const allocation of allocateSessionByDay(
+      session,
+      windowStart,
+      now,
+      now,
+    )) {
+      const bucket = byDate.get(allocation.date);
+      if (!bucket) {
+        continue;
+      }
+
+      bucket.activeSeconds += allocation.activeSeconds;
+      bucket.sessionCount += 1;
+    }
+  }
+
+  return weeks;
+}
+
 export function buildAnalysisData(
   sessions: SessionRecord[],
   now: Date = new Date(),
@@ -255,6 +319,7 @@ export function buildAnalysisData(
   return {
     daily: buildDailyBuckets(sessions, now),
     weekly: buildWeeklyBuckets(sessions, now),
+    weeks: buildWeekDetails(sessions, now),
     summary: buildAnalysisSummary(sessions, now),
     tags: buildTagTotals(sessions, now),
     today: buildTodaySessions(sessions, now),

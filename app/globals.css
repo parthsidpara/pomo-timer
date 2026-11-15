@@ -1362,6 +1362,59 @@ svg {
   letter-spacing: -0.02em;
 }
 
+.chart-toolbar {
+  margin-top: 13px;
+  padding-top: 12px;
+  border-top: 1px solid var(--separator);
+}
+
+.week-pager {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.week-pager-button {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: var(--fill);
+  color: var(--label);
+  font-size: 1.25rem;
+  font-weight: 500;
+  line-height: 1;
+  place-items: center;
+  transition:
+    background-color 140ms ease,
+    opacity 140ms ease;
+}
+
+.week-pager-button:hover:not(:disabled) {
+  background: var(--fill-strong);
+}
+
+.week-pager-button:disabled {
+  opacity: 0.32;
+}
+
+.week-pager-label {
+  min-width: 9.5rem;
+  color: var(--label);
+  font-size: 0.8125rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  text-align: center;
+}
+
+.week-current-button {
+  min-height: 34px;
+  margin-left: auto;
+  font-size: 0.8125rem;
+}
+
 .chart-bars {
   display: grid;
   margin: 22px 0 0;
@@ -1634,6 +1687,26 @@ svg {
 
   .chart-bar-track {
     height: 128px;
+  }
+
+  .week-pager {
+    gap: 6px;
+  }
+
+  .week-pager-button {
+    width: 32px;
+    height: 32px;
+    font-size: 1.15rem;
+  }
+
+  .week-pager-label {
+    min-width: 6.75rem;
+    font-size: 0.75rem;
+  }
+
+  .week-current-button {
+    min-height: 32px;
+    font-size: 0.75rem;
   }
 
   .session-row {

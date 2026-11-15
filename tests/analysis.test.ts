@@ -155,6 +155,28 @@ describe("analysis", () => {
     expect(weekly[7].activeSeconds).toBe(3600);
   });
 
+  it("builds seven day buckets for every loaded week", () => {
+    const analysis = buildAnalysisData(
+      [
+        session({
+          id: "overnight",
+          start: "2026-10-25T23:00:00+05:30",
+          end: "2026-10-26T01:00:00+05:30",
+        }),
+      ],
+      NOW,
+    );
+
+    expect(analysis.weeks).toHaveLength(8);
+    expect(analysis.weeks[0].days).toHaveLength(7);
+    expect(analysis.weeks[7].days[0].key).toBe("2026-10-26");
+    expect(
+      analysis.weeks[6].days.find((day) => day.key === "2026-10-25")
+        ?.activeSeconds,
+    ).toBe(3600);
+    expect(analysis.weeks[7].days[0].activeSeconds).toBe(3600);
+  });
+
   it("computes the analysis window start from the current IST week", () => {
     expect(analysisWindowStart(NOW).toISOString()).toBe(
       "2026-09-06T18:30:00.000Z",

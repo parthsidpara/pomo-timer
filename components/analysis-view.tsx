@@ -1,6 +1,9 @@
+"use client";
+
+import { useEffect, useState } from "react";
 import { BarChart, type ChartPoint } from "./bar-chart";
 import { TodaySessions } from "./today-sessions";
-import type { AnalysisData } from "@/lib/analysis";
+import type { AnalysisData, AnalysisWeek } from "@/lib/analysis";
 import {
   formatIstDayMonth,
   formatIstShortDate,
@@ -10,6 +13,20 @@ import { formatDuration } from "@/lib/ui-format";
 
 function formatMetric(seconds: number | null): string {
   return seconds === null ? "—" : formatDuration(seconds);
+}
+
+function weekRangeLabel(week: AnalysisWeek): string {
+  const end = new Date(
+    week.start.getTime() + 6 * 24 * 60 * 60 * 1000,
+  );
+  const startLabel = formatIstDayMonth(week.start);
+  const endLabel = formatIstDayMonth(end);
+  const startMonth = startLabel.split(" ").slice(1).join(" ");
+  const endMonth = endLabel.split(" ").slice(1).join(" ");
+
+  return startMonth === endMonth
+    ? `${startLabel.split(" ")[0]}–${endLabel}`
+    : `${startLabel} – ${endLabel}`;
 }
 
 type AnalysisViewProps = {
@@ -23,12 +40,37 @@ export function AnalysisView({
   loading,
   error,
 }: AnalysisViewProps) {
-  const dailyPoints: ChartPoint[] = analysis.daily.map((bucket) => ({
-    key: bucket.key,
-    label: formatIstWeekday(bucket.start),
-    accessibleLabel: formatIstShortDate(bucket.start),
-    seconds: bucket.activeSeconds,
-  }));
+  const weeks = analysis.weeks;
+  const currentWeekKey = weeks[weeks.length - 1]?.key ?? "";
+  const [selectedWeekKey, setSelectedWeekKey] = useState(currentWeekKey);
+
+  useEffect(() => {
+    if (!weeks.some((week) => week.key === selectedWeekKey)) {
+      setSelectedWeekKey(currentWeekKey);
+    }
+  }, [weeks, selectedWeekKey, currentWeekKey]);
+
+  const selectedWeek =
+    weeks.find((week) => week.key === selectedWeekKey) ??
+    weeks[weeks.length - 1];
+  const selectedIndex = selectedWeek
+    ? weeks.findIndex((week) => week.key === selectedWeek.key)
+    : -1;
+  const previousWeek = selectedIndex > 0 ? weeks[selectedIndex - 1] : null;
+  const nextWeek =
+    selectedIndex >= 0 && selectedIndex < weeks.length - 1
+      ? weeks[selectedIndex + 1]
+      : null;
+  const isCurrentWeek = selectedWeek?.key === currentWeekKey;
+
+  const dailyPoints: ChartPoint[] = (selectedWeek?.days ?? []).map(
+    (bucket) => ({
+      key: bucket.key,
+      label: formatIstWeekday(bucket.start),
+      accessibleLabel: formatIstShortDate(bucket.start),
+      seconds: bucket.activeSeconds,
+    }),
+  );
 
   const weeklyPoints: ChartPoint[] = analysis.weekly.map((bucket, index) => {
     const month = bucket.key.slice(5, 7);
@@ -46,10 +88,7 @@ export function AnalysisView({
     };
   });
 
-  const dailyRange = `${formatIstDayMonth(
-    analysis.daily[0].start,
-  )} – ${formatIstDayMonth(analysis.daily[analysis.daily.length - 1].start)}`;
-
+  const dailyRange = selectedWeek ? weekRangeLabel(selectedWeek) : "";
   const weeklyRange = `${formatIstDayMonth(
     analysis.weekly[0].start,
   )} – ${formatIstDayMonth(
@@ -119,9 +158,51 @@ export function AnalysisView({
           <BarChart
             id="daily-chart"
             title="Daily"
-            subtitle={`Last 7 days · ${dailyRange}`}
+            subtitle="Monday–Sunday · IST"
             points={dailyPoints}
-            emptyMessage="No completed sessions in the last 7 days."
+            emptyMessage="No completed sessions this week."
+            toolbar={
+              <div className="week-pager">
+                <button
+                  type="button"
+                  className="week-pager-button"
+                  aria-label="Previous week"
+                  disabled={!previousWeek}
+                  onClick={() => {
+                    if (previousWeek) {
+                      setSelectedWeekKey(previousWeek.key);
+                    }
+                  }}
+                >
+                  ‹
+                </button>
+                <span className="week-pager-label" aria-live="polite">
+                  {dailyRange}
+                </span>
+                <button
+                  type="button"
+                  className="week-pager-button"
+                  aria-label="Next week"
+                  disabled={!nextWeek}
+                  onClick={() => {
+                    if (nextWeek) {
+                      setSelectedWeekKey(nextWeek.key);
+                    }
+                  }}
+                >
+                  ›
+                </button>
+                {!isCurrentWeek ? (
+                  <button
+                    type="button"
+                    className="text-button week-current-button"
+                    onClick={() => setSelectedWeekKey(currentWeekKey)}
+                  >
+                    This week
+                  </button>
+                ) : null}
+              </div>
+            }
           />
 
           <TodaySessions sessions={analysis.today} />

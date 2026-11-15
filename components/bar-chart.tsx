@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { formatDuration, formatHoursMinutes } from "@/lib/ui-format";
 
 export type ChartPoint = {
@@ -14,6 +15,7 @@ type BarChartProps = {
   subtitle: string;
   points: ChartPoint[];
   emptyMessage: string;
+  toolbar?: ReactNode;
 };
 
 export function BarChart({
@@ -22,6 +24,7 @@ export function BarChart({
   subtitle,
   points,
   emptyMessage,
+  toolbar,
 }: BarChartProps) {
   const total = points.reduce((sum, point) => sum + point.seconds, 0);
   const max = Math.max(1, ...points.map((point) => point.seconds));
@@ -40,6 +43,8 @@ export function BarChart({
           <strong>{formatDuration(total)}</strong>
         </div>
       </div>
+
+      {toolbar ? <div className="chart-toolbar">{toolbar}</div> : null}
 
       <ul className="chart-bars">
         {points.map((point) => {

@@ -566,9 +566,11 @@ The timer page's history shows the latest 50 sessions.
 The **Analysis** tab (`/analysis`) uses completed sessions only; the running
 session stays on the timer screen so averages are stable.
 
-- **Daily** — active time for the last 7 days in IST, including today.
+- **Daily** — active time for the selected IST week, Monday through Sunday,
+  with previous/next week controls. Defaults to the current week.
 - **Today’s sessions** — completed sessions that started today, newest first,
-  with their time range, label, tag, and active duration.
+  with their time range, label, tag, and active duration. This panel remains
+  fixed to today while the Daily chart changes weeks.
 - **Weekly** — active time for the last 8 Monday–Sunday weeks.
 - **Summary** — total active time, session count, average session length, and
   longest session over the last 8 weeks.
@@ -578,6 +580,8 @@ session stays on the timer screen so averages are stable.
 Charts split a session across IST day and week boundaries, so a session
 crossing midnight is counted on both days. Pauses are excluded from all
 durations. Each nonzero bar shows its active time as `HH:MM` above the bar.
+The Daily chart starts on the current week; use the previous/next controls to
+inspect any of the loaded eight weeks.
 The analysis page runs its own live Firestore query for the 8-week window (up
 to 1,000 sessions), so it is not limited to the 50 sessions shown in the timer
 history.
@@ -632,7 +636,7 @@ local storage.
 npm test
 ```
 
-The 83 tests cover:
+The 84 tests cover:
 
 - Active time while running, paused, resumed, and stopped while paused.
 - Pause accumulation and final pause commits.
@@ -648,6 +652,8 @@ The 83 tests cover:
   including untitled sessions and documents without a start timestamp.
 - Analysis day/week bucketing in IST, zero-filled daily and weekly series,
   completed-only summaries, averages, and tag totals.
+- Seven-day detail buckets for every loaded analysis week, including
+  cross-midnight splits.
 - Case-insensitive tag filtering, merging, canonical display, variants, and
   untagged counts.
 - Session editing, trimming an active timer, pause commits on trim, deletion of
